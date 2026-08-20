@@ -64,35 +64,29 @@ const renderInline = (text: string) =>
     .replace(/\*\*(.*?)\*\*/g, '<strong class="text-sky-900 bg-sky-100 px-1 rounded font-bold">$1</strong>')
     .replace(/\n/g, "<br/>");
 
-// 💡 ここで列幅の比率を自由に変更できます（合計100%になるように指定）
 const TABLE_COL_WIDTHS = {
-  col1: "18%", // 1列目：比較項目
-  col2: "37%", // 2列目：保険
-  col3: "45%", // 3列目：自費（ここを増やすと自費が広くなります）
+  col1: "18%",
+  col2: "37%",
+  col3: "45%",
 };
 
 const cleanTableHtml = (html: string) => {
   let cleaned = html
-    // 不要な属性や古いcolgroupを一旦すべて削除
     .replace(/<colgroup>[\s\S]*?<\/colgroup>/gi, "")
     .replace(/<col[^>]*>/gi, "")
     .replace(/\s(style|width|height|bgcolor|border|cellpadding|cellspacing)="[^"]*"/gi, "");
 
-  // 1. 各列の幅を定義する colgroup タグを作成
   const colgroupHtml = `<colgroup><col style="width: ${TABLE_COL_WIDTHS.col1};"><col style="width: ${TABLE_COL_WIDTHS.col2};"><col style="width: ${TABLE_COL_WIDTHS.col3};"></colgroup>`;
 
-  // 2. tableタグの直後に colgroup を直接埋め込み！
   cleaned = cleaned.replace(
     /<table[^>]*>/gi,
     `<table style="table-layout: fixed; width: 100%; border-collapse: collapse;" class="w-full border-2 border-slate-300 text-[11.5px] my-1">${colgroupHtml}`
   );
 
-  // 3. デザイン調整（ヘッダーとセル）
   cleaned = cleaned
     .replace(/<th/gi, '<th class="border border-slate-300 p-1 bg-slate-900 text-white text-left font-bold"')
     .replace(/<td/gi, '<td class="border border-slate-300 p-1 text-slate-700 leading-tight font-normal"');
 
-  // 4. 1列目（比較項目）の文字が折り返さない設定を追加
   cleaned = cleaned.replace(/<tr[^>]*>[\s\S]*?<\/(th|td)>/gi, (match) => {
     return match.replace(/<(th|td)/, '<$1 style="white-space: nowrap;"');
   });
@@ -102,7 +96,12 @@ const cleanTableHtml = (html: string) => {
 
 export default function Page() {
   const [mounted, setMounted] = useState(false);
+  
+  // 💡 トークン・医院情報・衛生士名の管理
+  const [token, setToken] = useState("");
   const [clinicName, setClinicName] = useState("CS.lab");
+  const [staffName, setStaffName] = useState("");
+
   const [formData, setFormData] = useState({
     denture_status: "使っている",
     remaining_teeth: "ほとんど無い",
@@ -126,23 +125,36 @@ export default function Page() {
   const [sending, setSending] = useState(false);
   const [printingPdf, setPrintingPdf] = useState(false);
 
-  // 💡 A4プレビュー領域のサイズ監視とスケール管理
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
 
   useEffect(() => {
     setMounted(true);
-    // 💡【動作確認用ビルドマーカー】DevToolsコンソールにこの行が出れば新ファイルが動いている
-    console.log("[BUILD] pdf-print-pivot 2026-08-19 16:45");
+    console.log("[BUILD] pdf-print-pivot + token-auth 2026-08-20");
+
+    // 1. ?t= パラメータまたは localStorage からトークンをロード
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get("t");
+    const savedToken = localStorage.getItem("clinic_access_token");
+
+    const activeToken = urlToken || savedToken || "";
+    if (activeToken) {
+      setToken(activeToken);
+      localStorage.setItem("clinic_access_token", activeToken);
+      setClinicName(`接続中 (${activeToken})`);
+    } else {
+      setClinicName("※医院未設定 (?t=トークン要)");
+    }
+
+    // 2. 担当衛生士名を localStorage から復元
+    const savedStaff = localStorage.getItem("staff_name") || "";
+    setStaffName(savedStaff);
   }, []);
 
-  // 💡 画面幅に合わせて「見た目だけ」を縮小する計算
   useEffect(() => {
     const updateScale = () => {
       if (!previewAreaRef.current) return;
-      // 左右の余白(32px)を引いた有効な幅を取得
       const availableWidth = previewAreaRef.current.clientWidth - 32;
-      // A4幅(794px)より狭い場合のみ縮小（最大は1倍のまま）
       setFitScale(Math.min(1, availableWidth / A4_WIDTH_PX));
     };
 
@@ -223,18 +235,13 @@ export default function Page() {
     }
   };
 
-  // 💡 A4シートを撮影してPDF化する共通処理（「A4印刷」「医院へ送信」の両方がこれを使う）
-  //    画面プレビューで見えている見た目そのままを 210x297mm に焼き付ける方式のため、
-  //    window.print() のような「画面用CSSと印刷CSSの干渉」は原理上起こり得ない
   const buildSheetPdfBlob = async (): Promise<Blob | null> => {
     const { toJpeg } = await import("html-to-image");
     const { jsPDF } = await import("jspdf");
 
-    // ① 撮影のため一時的に実寸(scale=1)に戻す
     const originalScale = fitScale;
     setFitScale(1);
 
-    // DOMのレイアウト更新を確実に待つ（2回 requestAnimationFrame）
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
     );
@@ -250,7 +257,6 @@ export default function Page() {
     for (let i = 0; i < pages.length; i++) {
       const pageEl = pages[i] as HTMLElement;
 
-      // 実寸のA4サイズ（794x1123）として撮影
       const dataUrl = await toJpeg(pageEl, {
         quality: 0.85,
         pixelRatio: 2,
@@ -265,20 +271,14 @@ export default function Page() {
       });
 
       if (i > 0) pdf.addPage();
-      // 794x1123の比率は 210x297(A4)と完全一致するため歪まない
       pdf.addImage(dataUrl, "JPEG", 0, 0, 210, 297);
     }
 
-    // ② 撮影が終わったら元のプレビュースケールに戻す
     setFitScale(originalScale);
     return pdf.output("blob");
   };
 
-  // 💡 「A4印刷」ボタン：ブラウザ印刷(window.print)は印刷CSSの干渉で崩壊し続けたため廃止。
-  //    実績済みのPDF生成エンジンでA4ぴったりのPDFを作り、新しいタブのPDFビューアで開く
-  //    （あとはPDFビューア上で Ctrl+P すれば、確実にA4縦2ページで印刷できる）
   const handleOpenPrintPdf = async () => {
-    // ポップアップブロック回避のため、クリック直後の同期タイミングで先にタブを開いておく
     const win = window.open("", "_blank");
     setPrintingPdf(true);
     try {
@@ -302,8 +302,13 @@ export default function Page() {
     }
   };
 
-  // 💡 PDF化してn8nに送信する関数
+  // 💡 動的トークンと衛生士名を伴う送信処理
   const handleSendPrint = async () => {
+    if (!token) {
+      alert("医院トークンが未設定です。?t=トークン 付きURLからアクセスしてください。");
+      return;
+    }
+
     setSending(true);
     try {
       const pdfBlob = await buildSheetPdfBlob();
@@ -313,8 +318,12 @@ export default function Page() {
         return;
       }
 
+      const currentStaff = staffName.trim() || "担当衛生士";
+      localStorage.setItem("staff_name", currentStaff);
+
       const sendData = new FormData();
-      sendData.append("clinic_id", "11111111-1111-1111-1111-111111111111");
+      sendData.append("access_token", token); // 👈 動的トークン
+      sendData.append("staff_name", currentStaff); // 👈 衛生士名
       sendData.append("clinic_name", clinicName);
       sendData.append("patient_anon_id", "A101");
       sendData.append("pdfFile", pdfBlob, "sheet.pdf");
@@ -339,14 +348,11 @@ export default function Page() {
 
   const cleanClinicName = clinicName.replace(/様$/, "");
 
-  // 💡 共通のページラッパーコンポーネント
   const A4PageWrapper = ({ children, isLast }: { children: React.ReactNode, isLast?: boolean }) => (
-    // 外側の枠：縮小された「見た目」のサイズを確保する箱
     <div 
       className="print-wrapper" 
       style={{ width: A4_WIDTH_PX * fitScale, height: A4_HEIGHT_PX * fitScale }}
     >
-      {/* 内側の枠：常に794x1123pxの実寸を保ち、transformで縮小表示される箱 */}
       <div
         className={`sheet-page-portrait bg-white shadow-md border border-slate-300 flex flex-col relative ${
           isLast ? "print:break-after-auto" : "print:break-after-page"
@@ -368,15 +374,12 @@ export default function Page() {
 
   return (
     <main className="min-h-screen bg-slate-100 font-sans text-slate-800">
-   {/* 印刷専用＆プレビュー用CSS */}
       <style dangerouslySetInnerHTML={{ __html: `
-        /* テーブルの幅指定は JavaScript（cleanTableHtml）に一任 */
         .sheet-page-portrait table {
           table-layout: fixed !important;
           width: 100% !important;
         }
 
-        /* 画面プレビュー用設定 */
         .sheet-page-portrait {
           width: 100%;
           max-width: 794px;
@@ -402,7 +405,6 @@ export default function Page() {
             display: none !important;
           }
 
-          /* 全体の余白・高さをゼロリセット */
           html, body, main, .app-layout, .print-area {
             margin: 0 !important;
             padding: 0 !important;
@@ -413,7 +415,6 @@ export default function Page() {
             overflow: visible !important;
           }
 
-          /* プレビュー用ラッパーの干渉を排除 */
           .print-wrapper {
             width: 100% !important;
             height: auto !important;
@@ -422,7 +423,6 @@ export default function Page() {
             display: block !important;
           }
 
-          /* 💡 1ページ＝A4ぴったり（210mm × 297mm）に完全固定し、はみ出し溢れを防止 */
           .sheet-page-portrait {
             transform: none !important;
             width: 210mm !important;
@@ -430,19 +430,17 @@ export default function Page() {
             max-height: 297mm !important;
             padding: 12mm !important;
             box-sizing: border-box !important;
-            overflow: hidden !important; /* ← これで数ミリの溢れによる白紙・切れ端生成を遮断 */
+            overflow: hidden !important;
             border: none !important;
             box-shadow: none !important;
             margin: 0 auto !important;
             
-            /* 強制改ページ設定 */
             page-break-after: always !important;
             break-after: page !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
 
-          /* 💡 2ページ目（最後）の後の不要な改ページを解除 */
           .print-wrapper:last-child .sheet-page-portrait,
           .sheet-page-portrait:last-child {
             page-break-after: auto !important;
@@ -463,15 +461,9 @@ export default function Page() {
             </div>
           </div>
           <div className="hidden sm:flex items-center gap-4">
-            <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 border border-slate-700 focus-within:border-sky-500 transition">
-              <Building2 className="h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                value={clinicName}
-                onChange={(e) => setClinicName(e.target.value)}
-                placeholder="医院名を入力"
-                className="bg-transparent text-sm font-bold text-white focus:outline-none w-48 placeholder:text-slate-500"
-              />
+            <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 border border-slate-700">
+              <Building2 className="h-4 w-4 text-sky-400" />
+              <span className="text-xs font-bold text-white">{clinicName}</span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 border border-white/10">
               <Activity className="h-3.5 w-3.5 text-sky-400" />
@@ -480,6 +472,32 @@ export default function Page() {
           </div>
         </div>
       </header>
+
+      {/* 🏥 接続状況＆担当衛生士名入力バー（モバイル・PC共通） */}
+      <div className="no-print max-w-[1600px] mx-auto px-4 md:px-6 pt-4">
+        <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex flex-wrap justify-between items-center gap-3 shadow-xs">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-sky-600" />
+            <span className="text-xs text-slate-500">接続状況:</span>
+            <span className={`text-xs font-bold ${token ? "text-blue-900" : "text-rose-600"}`}>
+              {clinicName}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-600 font-bold">担当衛生士名:</label>
+            <input
+              type="text"
+              value={staffName}
+              onChange={(e) => {
+                setStaffName(e.target.value);
+                localStorage.setItem("staff_name", e.target.value);
+              }}
+              placeholder="お名前を入力"
+              className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-medium text-slate-800 w-36 focus:outline-none focus:border-sky-500"
+            />
+          </div>
+        </div>
+      </div>
 
       <div className="app-layout mx-auto grid max-w-[1600px] grid-cols-1 gap-6 p-4 md:p-6 lg:grid-cols-[400px_1fr]">
         <section className="no-print space-y-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200 h-fit">
@@ -786,7 +804,6 @@ export default function Page() {
                 )}
               </div>
 
-              {/* 💡 プレビュー領域（ここに useRef を適用して幅を監視します） */}
               <div ref={previewAreaRef} className="flex-1 overflow-auto bg-slate-200 p-4 rounded-xl border border-slate-300 flex flex-col items-center gap-6">
                 {activeTab === "patient" && (() => {
                   const sheet = parsePatientSheet(result.patientSheet);
