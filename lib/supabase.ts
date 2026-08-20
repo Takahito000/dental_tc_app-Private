@@ -1,15 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
-// ビルド時（process.envが空の評価タイミング）にエラーで落ちないようフォールバックを設定
-const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.SUPABASE_URL ||
-  "https://aqicsnqemgtmbixnrtxp.supabase.co";
+// 関数としてエクスポートし、呼び出された時だけ（＝API実行時に）初期化する
+export function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://aqicsnqemgtmbixnrtxp.supabase.co";
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
 
-const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "placeholder-key";
-
-// サーバーサイド（API Route）専用の管理者用Supabaseクライアント
-export const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  if (!url || !key) {
+    throw new Error("Supabase env missing");
+  }
+  
+  return createClient(url, key);
+}

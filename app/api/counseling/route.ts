@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+// 変更①：変数ではなく、関数をインポートする
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
@@ -56,6 +57,9 @@ export async function POST(req: Request) {
     // ----------------------------------------------------
     let patientAnonId = "";
     try {
+      // 変更②：APIが実行された「この瞬間」に初めてSupabaseクライアントを生成する
+      const supabase = getSupabaseAdmin();
+      
       const demoClinicId = "11111111-1111-1111-1111-111111111111"; // SQLで投入したデモ医院ID
       const { data: logData, error: logError } = await supabase
         .from("usage_logs")
