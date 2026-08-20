@@ -210,6 +210,7 @@ export default function Page() {
       cost_sensitivity: formData.cost_sensitivity,
       red_flag_words: formData.red_flag_words.join(", "),
       free_memo: formData.free_memo || "特になし",
+      staffName: staffName.trim(), // 👈 レポートの「担当」欄用（/api/counseling 側で [[STAFF_NAME]] をこの値に置換する）
     };
 
     try {
@@ -242,9 +243,14 @@ export default function Page() {
     const originalScale = fitScale;
     setFitScale(1);
 
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-    );
+    // DOMのレイアウト更新を待つ
+    // ※「PDFで開く」は新タブがフォーカスを奪うため元タブがバックグラウンド化し、
+    //   requestAnimationFrame が停止して永久に解決しない事故が起きる。
+    //   setTimeout はバックグラウンドでも発火するため併用し、必ず先に進める。
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      setTimeout(() => resolve(), 300); // フォーカスが外れても300msで必ず進む保険
+    });
 
     const pages = document.querySelectorAll(".sheet-page-portrait");
     if (pages.length === 0) {
@@ -279,7 +285,12 @@ export default function Page() {
   };
 
   const handleOpenPrintPdf = async () => {
+    // ポップアップブロック回避のため、クリック直後の同期タイミングで先にタブを開いておく
     const win = window.open("", "_blank");
+    // 生成中であることがわかるよう、白紙タブにメッセージを書き込む（生成完了後はPDFに置き換わる）
+    win?.document.write(
+      "<p style='font-family:sans-serif;padding:2em;color:#334155'>PDFを生成しています。数秒お待ちください…</p>"
+    );
     setPrintingPdf(true);
     try {
       const pdfBlob = await buildSheetPdfBlob();
