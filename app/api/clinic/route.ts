@@ -25,10 +25,32 @@ export async function GET(req: Request) {
       .eq("access_token", token)
       .single();
 
-    if (error || !data) {
-      // 未登録トークン、または access_token 列未作成でも 404 を返す（フロント側で無害に処理される）
+    if (error) {
+      console.error("Clinic API Query Error:", error);
+      // PGRST116 = 「0件（該当なし）」の正常系。それ以外はDB側の異常として分けて返す
+      if (error.code === "PGRST116") {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "このトークンに対応する医院が登録されていません。",
+            debug: debugInfo(),
+          },
+          { status: 404 }
+        );
+      }
       return NextResponse.json(
-        { success: false, error: "このトークンに対応する医院が登録されていません。" },
+        { success: false, error: `DB照合エラー: ${error.message}`, debug: debugInfo() },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "このトークンに対応する医院が登録されていません。",
+          debug: debugInfo(),
+        },
         { status: 404 }
       );
     }
@@ -41,8 +63,27 @@ export async function GET(req: Request) {
   } catch (err: any) {
     console.error("Clinic API Error:", err);
     return NextResponse.json(
-      { success: false, error: err.message || "サーバー内部エラー" },
+      { success: false, error: err.message || "サーバー内部エラー", debug: debugInfo() },
       { status: 500 }
     );
   }
+}
+
+// 診断用: どのSupabaseプロジェクトに、どの種別のキーで接続しているかを安全に可視化する
+// （キー本体は一切返さず、URLのホスト名とキーの役割ロールのみ）
+function debugInfo() {
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const urlMatch = rawUrl.match(/https?:\/\/([^\/\s\[\]\(\)"']+)/);
+  const host = urlMatch ? urlMatch[1] : "(URL未設定or破損)";
+
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  let role = "unknown";
+  try {
+    const payload = JSON.parse(Buffer.from(key.split(".")[1], "base64").toString());
+    role = payload.role || "unknown";
+  } catch {
+    role = key ? "(JWTとして読めない形式)" : "(キー未設定)";
+  }
+
+  return { supabaseHost: host, keyRole: role };
 }
