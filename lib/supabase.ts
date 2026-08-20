@@ -1,13 +1,17 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
 
-// 関数としてエクスポートし、呼び出された時だけ（＝API実行時に）初期化する
-export function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://aqicsnqemgtmbixnrtxp.supabase.co";
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key";
+// マークダウン記号やゴミ文字を自動切除して正しいURLのみを抽出
+const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const urlMatch = rawUrl.match(/(https?:\/\/[^\s\[\]\(\)]+)/);
+const supabaseUrl = urlMatch ? urlMatch[1] : 'https://aqicsnqemgtmbixnrtxp.supabase.co';
 
-  if (!url || !key) {
-    throw new Error("Supabase env missing");
-  }
-  
-  return createClient(url, key);
-}
+const rawKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseAnonKey = rawKey.replace(/[\[\]\(\)'"\s]/g, '').trim();
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export const getSupabaseAdmin = () => {
+  const rawAdminKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const adminKey = rawAdminKey.replace(/[\[\]\(\)'"\s]/g, '').trim();
+  return createClient(supabaseUrl, adminKey);
+};
