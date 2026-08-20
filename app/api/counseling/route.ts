@@ -5,24 +5,17 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-   // 1. APIキーとURLのクリーンアップ
+    // 1. APIキーのクリーンアップ（余分な空白・改行・引用符を完全除去）
     const rawApiKey = process.env.DIFY_API_KEY || "";
     const apiKey = rawApiKey.replace(/[\[\]\(\)'"\s]/g, "").trim();
 
-    // 2重貼り付け等のURL破損を判定し、正しいベースURL（https://.../v1）のみを強制抽出
-    const rawApiUrl = (process.env.DIFY_API_URL || "https://api.dify.ai/v1").replace(/[\[\]\(\)'"\s]/g, "").trim();
-    const urlMatch = rawApiUrl.match(/(https?:\/\/[^\/]+\/v1)/);
+    // 2. 2重貼り付け等のURL破損を判定し、正しいベースURL（https://.../v1）のみを強制抽出
+    const rawEnvUrl = (process.env.DIFY_API_URL || "https://api.dify.ai/v1").replace(/[\[\]\(\)'"\s]/g, "").trim();
+    const urlMatch = rawEnvUrl.match(/(https?:\/\/[^\/]+\/v1)/);
     const baseUrl = urlMatch ? urlMatch[1] : "https://api.dify.ai/v1";
     
+    // 送信先URLを生成
     const targetUrl = `${baseUrl}/completion-messages`;
-
-    let rawApiUrl = (process.env.DIFY_API_URL || "https://api.dify.ai/v1")
-      .replace(/[\[\]\(\)'"\s]/g, "")
-      .trim()
-      .replace(/\/+$/, "");
-
-    rawApiUrl = rawApiUrl.replace(/\/completion-messages$/, "");
-    const targetUrl = `${rawApiUrl}/completion-messages`;
 
     if (!apiKey) {
       return NextResponse.json(
