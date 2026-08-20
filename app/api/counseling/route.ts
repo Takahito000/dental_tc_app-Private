@@ -116,15 +116,16 @@ export async function POST(req: Request) {
     if (staffName) {
       patientSheet = patientSheet.replaceAll("[[STAFF_NAME]]", staffName);
     } else {
-      // 衛生士名が未入力の場合は「担当」行ごと削除して空欄を残さない
-      patientSheet = patientSheet.replace(/^.*\[\[STAFF_NAME\]\].*(\n|$)/gm, "");
+      // 衛生士名が未入力の場合は「担当: 」の部分だけを除去する
+      // （発行日・管理IDと同じ行に同居しているため、行ごと削除すると道連れになる）
+      patientSheet = patientSheet.replace(/担当[:：]\s*\[\[STAFF_NAME\]\][　\s]*/g, "");
     }
 
     if (patientAnonId) {
       patientSheet = patientSheet.replaceAll("[[PATIENT_ID]]", patientAnonId);
     } else {
-      // 採番に失敗した場合は「管理ID」行ごと削除（空のプレースホルダーを残さない）
-      patientSheet = patientSheet.replace(/^.*\[\[PATIENT_ID\]\].*(\n|$)/gm, "");
+      // 採番に失敗した場合は「管理ID: 」の部分だけを除去する
+      patientSheet = patientSheet.replace(/管理ID[:：]\s*\[\[PATIENT_ID\]\][　\s]*/g, "");
     }
 
     return NextResponse.json({

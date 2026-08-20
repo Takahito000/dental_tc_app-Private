@@ -99,7 +99,7 @@ export default function Page() {
   
   // 💡 トークン・医院情報・衛生士名の管理
   const [token, setToken] = useState("");
-  const [clinicName, setClinicName] = useState("CS.lab");
+  const [clinicName, setClinicName] = useState("");
   const [staffName, setStaffName] = useState("");
 
   const [formData, setFormData] = useState({
@@ -130,7 +130,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 15:50 gen-first-pdf");
+    console.log("[BUILD] 2026-08-20 16:10 clinic-resolve");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -141,9 +141,27 @@ export default function Page() {
     if (activeToken) {
       setToken(activeToken);
       localStorage.setItem("clinic_access_token", activeToken);
-      setClinicName(`接続中 (${activeToken})`);
+
+      // 💡 トークンから正式な医院名を引く（患者向けシートに「接続中 (token)」等の
+      //    内部表記を絶対に出さないため、解決できた場合のみ state に正式名を入れる）
+      const cachedName = localStorage.getItem("clinic_name") || "";
+      if (cachedName) setClinicName(cachedName);
+
+      fetch(`/api/clinic?t=${encodeURIComponent(activeToken)}`)
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success && d.name) {
+            setClinicName(d.name);
+            localStorage.setItem("clinic_name", d.name);
+          } else {
+            // 未登録トークン：シートには医院名を出さない（画面の接続状況バーで警告表示）
+            setClinicName("");
+            localStorage.removeItem("clinic_name");
+          }
+        })
+        .catch(() => setClinicName(""));
     } else {
-      setClinicName("※医院未設定 (?t=トークン要)");
+      setClinicName(""); // トークンなし：シートには医院名を出さない
     }
 
     // 2. 担当衛生士名を localStorage から復元
@@ -183,7 +201,7 @@ export default function Page() {
   const handleMultiSelect = (key: "current_denture_complaints" | "emotion_drivers" | "red_flag_words", value: string) => {
     setFormData((prev) => {
       const list = prev[key];
-      if (value === "特になし") return { ...prev, [key]: ["特になし"] };
+      if (value === "特になし") return { ...prev, [key]: ["特���なし"] };
       const filteredList = list.filter((item) => item !== "特になし");
       const newList = filteredList.includes(value)
         ? filteredList.filter((item) => item !== value)
@@ -475,7 +493,7 @@ export default function Page() {
           <div className="hidden sm:flex items-center gap-4">
             <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 border border-slate-700">
               <Building2 className="h-4 w-4 text-sky-400" />
-              <span className="text-xs font-bold text-white">{clinicName}</span>
+              <span className="text-xs font-bold text-white">{clinicName || "CS.lab"}</span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 border border-white/10">
               <Activity className="h-3.5 w-3.5 text-sky-400" />
@@ -491,8 +509,12 @@ export default function Page() {
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-sky-600" />
             <span className="text-xs text-slate-500">接続状況:</span>
-            <span className={`text-xs font-bold ${token ? "text-blue-900" : "text-rose-600"}`}>
-              {clinicName}
+            <span className={`text-xs font-bold ${token && clinicName ? "text-blue-900" : "text-rose-600"}`}>
+              {token
+                ? clinicName
+                  ? `接続OK: ${clinicName}`
+                  : `未登録のトークンです（${token}）— Supabaseのclinicsに登録してください`
+                : "医院未設定（?t=トークン付きURLからアクセスしてください）"}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -830,7 +852,9 @@ export default function Page() {
                       <div className="flex items-center justify-between gap-3">
                         <h1 className="text-[16.0px] font-bold tracking-wide flex-1">{sheet.title}</h1>
                         <div className="text-right text-[9.5px] opacity-90 leading-tight shrink-0">
-                          <div className="font-semibold">{cleanClinicName}</div>
+                          {cleanClinicName && (
+                            <div className="font-semibold">{cleanClinicName}</div>
+                          )}
                           <div className="text-[8px] text-slate-300 mt-0.5 space-y-0.5">
                             {sheet.issueLine
                               .replace(/:\s*/g, ":")
