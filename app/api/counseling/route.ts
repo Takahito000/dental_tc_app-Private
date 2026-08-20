@@ -6,8 +6,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const apiKey = process.env.DIFY_API_KEY;
-    const apiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1";
+    // 修正前
+const apiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1";
+
+// 修正後（不要なブラケットやクォーテーションを強制的にお掃除）
+const rawApiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1";
+const apiUrl = rawApiUrl.replace(/[\[\]\(\)'"]/g, "").trim();
 
     if (!apiKey) {
       return NextResponse.json(
