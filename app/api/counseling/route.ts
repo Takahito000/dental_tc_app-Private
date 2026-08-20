@@ -32,7 +32,21 @@ export async function POST(req: Request) {
       }),
     });
 
-    const difyData = await difyRes.json();
+    // 💡 レスポンスを安全に受け取るための処理に変更
+    const resText = await difyRes.text();
+    let difyData: any = {};
+    try {
+      difyData = resText ? JSON.parse(resText) : {};
+    } catch {
+      console.error("[Dify Response Parse Error]", resText);
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Difyからの応答解析に失敗しました (Status: ${difyRes.status})。APIキーまたはURLを確認してください。`,
+        },
+        { status: 500 }
+      );
+    }
 
     if (!difyRes.ok) {
       console.error("[Dify API Error]", difyRes.status, difyData);
