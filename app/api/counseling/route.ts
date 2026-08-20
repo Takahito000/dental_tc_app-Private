@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
-// 変更①：変数ではなく、関数をインポートする
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // 修正前
-const apiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1";
-
-// 修正後（不要なブラケットやクォーテーションを強制的にお掃除）
-const rawApiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1";
-const apiUrl = rawApiUrl.replace(/[\[\]\(\)'"]/g, "").trim();
+    const apiKey = process.env.DIFY_API_KEY;
+    
+    // 不要なブラケットやクォーテーションを掃除して1回だけ宣言
+    const rawApiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1";
+    const apiUrl = rawApiUrl.replace(/[\[\]\(\)'"]/g, "").trim();
 
     if (!apiKey) {
       return NextResponse.json(
@@ -57,14 +55,13 @@ const apiUrl = rawApiUrl.replace(/[\[\]\(\)'"]/g, "").trim();
     const talkScript = talkScriptMatch ? talkScriptMatch[1].trim() : "";
 
     // ----------------------------------------------------
-    // ★ Supabase への利用ログ書き込み処理（フェーズ1）
+    // Supabase への利用ログ書き込み処理（遅延初期化）
     // ----------------------------------------------------
     let patientAnonId = "";
     try {
-      // 変更②：APIが実行された「この瞬間」に初めてSupabaseクライアントを生成する
       const supabase = getSupabaseAdmin();
       
-      const demoClinicId = "11111111-1111-1111-1111-111111111111"; // SQLで投入したデモ医院ID
+      const demoClinicId = "11111111-1111-1111-1111-111111111111";
       const { data: logData, error: logError } = await supabase
         .from("usage_logs")
         .insert({
@@ -88,7 +85,7 @@ const apiUrl = rawApiUrl.replace(/[\[\]\(\)'"]/g, "").trim();
       success: true,
       patientSheet,
       talkScript,
-      patientAnonId, // 自動採番された匿名ID (例: A101)
+      patientAnonId,
     });
   } catch (err: any) {
     console.error("Server Error:", err);
