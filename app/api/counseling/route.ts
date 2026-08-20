@@ -66,11 +66,20 @@ export async function POST(req: Request) {
 
     const answer: string = difyData.answer || "";
 
+    // レポートヘッダー置換用の値を先に確定（衛生士名・発行日）
+    const staffName = (body.staffName || body.staff_name || "").toString().trim();
+    const issueDate = new Date().toLocaleDateString("ja-JP", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "Asia/Tokyo",
+    });
+
     // テキストから患者用シートとトークカンペを抽出
     const patientSheetMatch = answer.match(/===PATIENT_SHEET_START===([\s\S]*?)===PATIENT_SHEET_END===/);
     const talkScriptMatch = answer.match(/===TALK_SCRIPT_START===([\s\S]*?)===TALK_SCRIPT_END===/);
 
-    const patientSheet = patientSheetMatch ? patientSheetMatch[1].trim() : answer;
+    let patientSheet = patientSheetMatch ? patientSheetMatch[1].trim() : answer;
     const talkScript = talkScriptMatch ? talkScriptMatch[1].trim() : "";
 
    // ----------------------------------------------------
@@ -80,9 +89,6 @@ export async function POST(req: Request) {
     try {
       const supabase = getSupabaseAdmin();
       const demoClinicId = "11111111-1111-1111-1111-111111111111";
-
-      // 入力フォームから送信された衛生士名を取得（未入力の場合は"衛生士"）
-      const staffName = body.staffName || body.staff_name || "衛生士";
 
       const { data: logData, error: logError } = await supabase
         .from("usage_logs")
@@ -101,6 +107,24 @@ export async function POST(req: Request) {
       }
     } catch (dbErr) {
       console.error("Supabase Log DB Error:", dbErr);
+    }
+
+    // --- レポートヘッダーのプレースホルダーを実値に置換 ---
+    // Difyプロンプトが出力する [[STAFF_NAME]] / [[ISSUE_DATE]] / [[PATIENT_ID]] をここで最終差し替えする
+    patientSheet = patientSheet.replaceAll("[[ISSUE_DATE]]", issueDate);
+
+    if (staffName) {
+      patientSheet = patientSheet.replaceAll("[[STAFF_NAME]]", staffName);
+    } else {
+      // 衛生士名が未入力の場合は「担当」行ごと削除して空欄を残さない
+      patientSheet = patientSheet.replace(/^.*\[\[STAFF_NAME\]\].*(\n|$)/gm, "");
+    }
+
+    if (patientAnonId) {
+      patientSheet = patientSheet.replaceAll("[[PATIENT_ID]]", patientAnonId);
+    } else {
+      // 採番に失敗した場合は「管理ID」行ごと削除（空のプレースホルダーを残さない）
+      patientSheet = patientSheet.replace(/^.*\[\[PATIENT_ID\]\].*(\n|$)/gm, "");
     }
 
     return NextResponse.json({
