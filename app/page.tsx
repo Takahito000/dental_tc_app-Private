@@ -22,7 +22,7 @@ const A4_HEIGHT_PX = 1123;
 
 const FORM_DATA = {
   denture_status: ["使っている", "使っていない（初めて）"],
-  remaining_teeth: ["ほとんどある", "少しある", "ほとんど無い"],
+  remaining_teeth: ["ほとんどある", "少しある", "ほとんど無い", "1本もない（無歯顎）"],
   current_denture_complaints: ["痛い", "外れやすい", "噛めない", "見た目が悪い", "話づらい", "その他"],
   denture_duration: ["1年未満", "1〜5年", "5年以上", "該当なし（未使用者）", "不明"],
   adjustment_history: ["調整しても改善しない", "作り直したがダメ", "ほぼ未調整", "該当なし（未使用者）"],
@@ -131,7 +131,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 20:30 options-master-sync");
+    console.log("[BUILD] 2026-08-20 20:45 add-edentulous-option");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
