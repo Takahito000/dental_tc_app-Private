@@ -2,18 +2,22 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    // 変更点: JSONではなく、送られてきた「ファイル（FormData）」を受け取る
+    // 送られてきた「ファイル（FormData）」を受け取る
     const formData = await req.formData();
-    const webhookUrl = process.env.N8N_PRINT_WEBHOOK_URL;
+    
+    // --- 【追加】URLサニタイズ（浄化）処理 ---
+    const rawWebhookUrl = process.env.N8N_PRINT_WEBHOOK_URL || "";
+    const urlMatch = rawWebhookUrl.match(/(https?:\/\/[^\s\[\]\(\)]+)/);
+    const webhookUrl = urlMatch ? urlMatch[1] : "";
 
     if (!webhookUrl) {
       return NextResponse.json(
-        { success: false, error: "N8N_PRINT_WEBHOOK_URL が未設定です。" },
+        { success: false, error: "N8N_PRINT_WEBHOOK_URL が正しく設定されていません。" },
         { status: 500 }
       );
     }
 
-    // 変更点: FormData (PDFファイル＋医院IDなど) をそのままn8nへ転送！
+    // FormData (PDFファイル＋医院IDなど) をそのままn8nへ転送！
     const res = await fetch(webhookUrl, {
       method: "POST",
       body: formData, // JSON.stringify は使いません
