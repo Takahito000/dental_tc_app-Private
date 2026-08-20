@@ -130,7 +130,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 16:10 clinic-resolve");
+    console.log("[BUILD] 2026-08-20 17:00 dynamic-clinic-log");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -229,6 +229,7 @@ export default function Page() {
       red_flag_words: formData.red_flag_words.join(", "),
       free_memo: formData.free_memo || "特になし",
       staffName: staffName.trim(), // 👈 レポートの「担当」欄用（/api/counseling 側で [[STAFF_NAME]] をこの値に置換する）
+      token: token, // 👈 医院特定用（usage_logs の clinic_id を動的化するため）
     };
 
     try {

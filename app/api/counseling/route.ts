@@ -88,22 +88,38 @@ export async function POST(req: Request) {
     let patientAnonId = "";
     try {
       const supabase = getSupabaseAdmin();
-      const demoClinicId = "11111111-1111-1111-1111-111111111111";
 
-      const { data: logData, error: logError } = await supabase
-        .from("usage_logs")
-        .insert({
-          clinic_id: demoClinicId,
-          staff_name: staffName,
-        })
-        .select("patient_anon_id")
-        .single();
+      // 💡 アクセストークンから医院を特定し、ログの clinic_id を動的化する
+      //    （固定IDのままだと、医院別の利用集計・課金カウント・ヘルススコア監視が全て壊れるため）
+      const clinicToken = (body.token || body.access_token || "").toString().trim();
+      let clinicId: string | null = null;
+      if (clinicToken) {
+        const { data: clinic } = await supabase
+          .from("clinics")
+          .select("id")
+          .eq("access_token", clinicToken)
+          .single();
+        clinicId = clinic?.id ?? null;
+      }
 
-      if (!logError && logData) {
-        patientAnonId = logData.patient_anon_id;
-        console.log("Supabase Log Created:", patientAnonId);
+      if (!clinicId) {
+        console.warn("Supabase Log Skipped: token未送信または未登録のためログを記録しませんでした");
       } else {
-        console.warn("Supabase Log Warning:", logError?.message);
+        const { data: logData, error: logError } = await supabase
+          .from("usage_logs")
+          .insert({
+            clinic_id: clinicId,
+            staff_name: staffName,
+          })
+          .select("patient_anon_id")
+          .single();
+
+        if (!logError && logData) {
+          patientAnonId = logData.patient_anon_id;
+          console.log("Supabase Log Created:", patientAnonId, "clinic:", clinicId);
+        } else {
+          console.warn("Supabase Log Warning:", logError?.message);
+        }
       }
     } catch (dbErr) {
       console.error("Supabase Log DB Error:", dbErr);
