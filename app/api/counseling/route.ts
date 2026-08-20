@@ -5,11 +5,17 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const apiKey = process.env.DIFY_API_KEY;
-    
-    // 不要なブラケットやクォーテーションを掃除して1回だけ宣言
-    const rawApiUrl = process.env.DIFY_API_URL || "https://api.dify.ai/v1";
-    const apiUrl = rawApiUrl.replace(/[\[\]\(\)'"]/g, "").trim();
+    // 1. APIキーとURLのクリーンアップ（余分な空白・改行・引用符を完全除去）
+    const rawApiKey = process.env.DIFY_API_KEY || "";
+    const apiKey = rawApiKey.replace(/[\[\]\(\)'"\s]/g, "").trim();
+
+    let rawApiUrl = (process.env.DIFY_API_URL || "https://api.dify.ai/v1")
+      .replace(/[\[\]\(\)'"\s]/g, "")
+      .trim()
+      .replace(/\/+$/, "");
+
+    rawApiUrl = rawApiUrl.replace(/\/completion-messages$/, "");
+    const targetUrl = `${rawApiUrl}/completion-messages`;
 
     if (!apiKey) {
       return NextResponse.json(
@@ -19,7 +25,7 @@ export async function POST(req: Request) {
     }
 
     // Dify Completion API へリクエスト送信
-    const difyRes = await fetch(`${apiUrl}/completion-messages`, {
+    const difyRes = await fetch(targetUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -32,7 +38,6 @@ export async function POST(req: Request) {
       }),
     });
 
-    // 💡 レスポンスを安全に受け取るための処理に変更
     const resText = await difyRes.text();
     let difyData: any = {};
     try {
@@ -42,7 +47,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: `Difyからの応答解析に失敗しました (Status: ${difyRes.status})。APIキーまたはURLを確認してください。`,
+          error: `Difyからの応答解析に失敗しました (Target: ${targetUrl}, Status: ${difyRes.status})`,
         },
         { status: 500 }
       );
@@ -53,7 +58,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: `Dify APIエラー (${difyRes.status}): ${difyData.message || "通信失敗"}`,
+          error: `Dify APIエラー (${difyRes.status}) [URL: ${targetUrl}]: ${difyData.message || "通信失敗"}`,
         },
         { status: difyRes.status }
       );
@@ -74,7 +79,6 @@ export async function POST(req: Request) {
     let patientAnonId = "";
     try {
       const supabase = getSupabaseAdmin();
-      
       const demoClinicId = "11111111-1111-1111-1111-111111111111";
       const { data: logData, error: logError } = await supabase
         .from("usage_logs")
