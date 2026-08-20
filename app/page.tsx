@@ -25,7 +25,7 @@ const FORM_DATA = {
   remaining_teeth: ["ほとんどある", "少しある", "ほとんど無い"],
   current_denture_complaints: ["痛い", "外れやすい", "噛めない", "見た目が悪い", "話づらい", "その他"],
   denture_duration: ["1年未満", "1〜5年", "5年以上"],
-  adjustment_history: ["調整しても改善しない", "最近作ったが合わない", "何回も作り直している", "特になし"],
+  adjustment_history: ["調整しても改善しない", "作り直したがダメ", "ほぼ未調整", "該当なし（未使用者）"],
   oral_dryness: ["普通", "乾いている・少ない"],
   ridge_mucosa: ["しっかり", "平坦・やせ・痛みやすい", "不明"],
   emotion_drivers: ["家族と食事", "見た目・審美", "旅行やおでかけ", "会話を楽しむ", "痛みのない生活"],
@@ -131,7 +131,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 17:35 mobile-polish");
+    console.log("[BUILD] 2026-08-20 20:15 adjustment-history-sync");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
