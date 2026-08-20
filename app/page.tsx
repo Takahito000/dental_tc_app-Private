@@ -130,7 +130,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] pdf-print-pivot + token-auth 2026-08-20");
+    console.log("[BUILD] 2026-08-20 15:05 staffname-send + raf-bg-fix");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
