@@ -131,7 +131,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 17:15 mobile-pwa");
+    console.log("[BUILD] 2026-08-20 17:35 mobile-polish");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -208,7 +208,7 @@ export default function Page() {
   const handleMultiSelect = (key: "current_denture_complaints" | "emotion_drivers" | "red_flag_words", value: string) => {
     setFormData((prev) => {
       const list = prev[key];
-      if (value === "特になし") return { ...prev, [key]: ["特���なし"] };
+      if (value === "特になし") return { ...prev, [key]: ["特になし"] };
       const filteredList = list.filter((item) => item !== "特になし");
       const newList = filteredList.includes(value)
         ? filteredList.filter((item) => item !== value)
@@ -535,7 +535,7 @@ export default function Page() {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-600 font-bold">担当衛生士名:</label>
+            <label className="text-sm text-slate-600 font-bold">担当衛生士名:</label>
             <input
               type="text"
               value={staffName}
@@ -565,7 +565,7 @@ export default function Page() {
           <div className="space-y-3.5 text-xs">
             {/* 1. 入れ歯の使用状況 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600">1. 入れ歯の使用状況</label>
+              <label className="block font-bold mb-1 text-slate-600 text-sm">1. 入れ歯の使用状況</label>
               <div className="flex gap-1.5">
                 {FORM_DATA.denture_status.map((item) => (
                   <button
@@ -586,7 +586,7 @@ export default function Page() {
 
             {/* 2. 残っている歯 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600">2. 残っている歯</label>
+              <label className="block font-bold mb-1 text-slate-600 text-sm">2. 残っている歯</label>
               <div className="flex gap-1.5">
                 {FORM_DATA.remaining_teeth.map((item) => (
                   <button
@@ -608,7 +608,7 @@ export default function Page() {
             {/* 3. 使用年数 & 4. 調整履歴 */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-bold mb-1 text-slate-600">3. 現義歯の使用年数</label>
+                <label className="block font-bold mb-1 text-slate-600 text-sm">3. 現義歯の使用年数</label>
                 <select
                   value={formData.denture_duration}
                   onChange={(e) => handleSelect("denture_duration", e.target.value)}
@@ -620,7 +620,7 @@ export default function Page() {
                 </select>
               </div>
               <div>
-                <label className="block font-bold mb-1 text-slate-600">4. 調整・履歴</label>
+                <label className="block font-bold mb-1 text-slate-600 text-sm">4. 調整・履歴</label>
                 <select
                   value={formData.adjustment_history}
                   onChange={(e) => handleSelect("adjustment_history", e.target.value)}
@@ -636,7 +636,7 @@ export default function Page() {
             {/* 5. 口の乾き & 6. 顎堤・粘膜の状態 */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-bold mb-1 text-slate-600">5. 口の乾き・唾液</label>
+                <label className="block font-bold mb-1 text-slate-600 text-sm">5. 口の乾き・唾液</label>
                 <select
                   value={formData.oral_dryness}
                   onChange={(e) => handleSelect("oral_dryness", e.target.value)}
@@ -648,7 +648,7 @@ export default function Page() {
                 </select>
               </div>
               <div>
-                <label className="block font-bold mb-1 text-slate-600">6. 顎堤・粘膜の状態</label>
+                <label className="block font-bold mb-1 text-slate-600 text-sm">6. 顎堤・粘膜の状態</label>
                 <select
                   value={formData.ridge_mucosa}
                   onChange={(e) => handleSelect("ridge_mucosa", e.target.value)}
@@ -663,7 +663,7 @@ export default function Page() {
 
             {/* 7. 期待値タイプ */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600">7. 期待値タイプ</label>
+              <label className="block font-bold mb-1 text-slate-600 text-sm">7. 期待値タイプ</label>
               <select
                 value={formData.expectation_type}
                 onChange={(e) => handleSelect("expectation_type", e.target.value)}
@@ -677,7 +677,7 @@ export default function Page() {
 
             {/* 8. 費用感度 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600">8. 費用感度</label>
+              <label className="block font-bold mb-1 text-slate-600 text-sm">8. 費用感度</label>
               <div className="flex gap-1.5">
                 {FORM_DATA.cost_sensitivity.map((item) => (
                   <button
@@ -698,7 +698,7 @@ export default function Page() {
 
             {/* 9. 現義歯の主な不満 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600">9. 現義歯の主な不満（複数可）</label>
+              <label className="block font-bold mb-1 text-slate-600 text-sm">9. 現義歯の主な不満（複数可）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.current_denture_complaints.map((item) => {
                   const isActive = formData.current_denture_complaints.includes(item);
@@ -722,7 +722,7 @@ export default function Page() {
 
             {/* 10. 追求したい情緒価値 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600">10. 追求したい情緒価値（複数可）</label>
+              <label className="block font-bold mb-1 text-slate-600 text-sm">10. 追求したい情緒価値（複数可）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.emotion_drivers.map((item) => {
                   const isActive = formData.emotion_drivers.includes(item);
@@ -746,7 +746,7 @@ export default function Page() {
 
             {/* 11. 要注意ワード */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600">11. 要注意ワード（慎重モード）</label>
+              <label className="block font-bold mb-1 text-slate-600 text-sm">11. 要注意ワード（慎重モード）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.red_flag_words.map((item) => {
                   const isActive = formData.red_flag_words.includes(item);
@@ -773,12 +773,12 @@ export default function Page() {
 
             {/* 12. 現場メモ */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600">12. 現場メモ（任意）</label>
+              <label className="block font-bold mb-1 text-slate-600 text-sm">12. 現場メモ（任意）</label>
               <input
                 type="text"
                 value={formData.free_memo}
                 onChange={(e) => setFormData({ ...formData, free_memo: e.target.value })}
-                placeholder="家族の同席希望、持病���ど"
+                placeholder="家族の同席希望、持病など"
                 className="w-full p-2 border border-slate-200 rounded-lg bg-white text-base"
               />
             </div>
@@ -815,23 +815,23 @@ export default function Page() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setActiveTab("patient")}
-                    className={`py-2 px-4 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                    className={`py-2 px-4 min-h-[44px] justify-center rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
                       activeTab === "patient"
                         ? "bg-slate-900 text-white shadow"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
-                    <FileText size={14} /> A4提案シート (患者用)
+                    <FileText size={16} /> <span className="hidden sm:inline">A4提案シート (患者用)</span>
                   </button>
                   <button
                     onClick={() => setActiveTab("talk")}
-                    className={`py-2 px-4 rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                    className={`py-2 px-4 min-h-[44px] justify-center rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
                       activeTab === "talk"
                         ? "bg-amber-100 text-amber-900 border border-amber-300 shadow-sm"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
-                    <MessageSquare size={14} /> トークカンペ (画面専用)
+                    <MessageSquare size={16} /> <span className="hidden sm:inline">トークカンペ (画面専用)</span>
                   </button>
                 </div>
 
@@ -840,16 +840,16 @@ export default function Page() {
                     <button
                       onClick={handleOpenPrintPdf}
                       disabled={printingPdf}
-                      className="py-2 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
+                      className="py-2 px-4 min-h-[44px] justify-center bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
                     >
-                      <Printer size={14} /> {printingPdf ? "PDF生成中..." : "A4印刷（PDFで開く）"}
+                      <Printer size={16} /> <span className="hidden sm:inline">{printingPdf ? "PDF生成中..." : "A4印刷（PDFで開く）"}</span>
                     </button>
                     <button
                       onClick={handleSendPrint}
                       disabled={sending}
-                      className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
+                      className="py-2 px-4 min-h-[44px] justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
                     >
-                      <Send size={14} /> {sending ? "送信中..." : "印刷（医院へ送信）"}
+                      <Send size={16} /> <span className="hidden sm:inline">{sending ? "送信中..." : "印刷（医院へ送信）"}</span>
                     </button>
                   </div>
                 )}
