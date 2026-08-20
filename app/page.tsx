@@ -101,6 +101,7 @@ export default function Page() {
   const [token, setToken] = useState("");
   const [clinicName, setClinicName] = useState("");
   const [staffName, setStaffName] = useState("");
+  const [isStandalone, setIsStandalone] = useState(true); // PWA判定（初期true=バナー非表示。マウント後に実判定）
 
   const [formData, setFormData] = useState({
     denture_status: "使っている",
@@ -130,7 +131,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 17:00 dynamic-clinic-log");
+    console.log("[BUILD] 2026-08-20 17:15 mobile-pwa");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -167,6 +168,12 @@ export default function Page() {
     // 2. 担当衛生士名を localStorage から復元
     const savedStaff = localStorage.getItem("staff_name") || "";
     setStaffName(savedStaff);
+
+    // 3. PWA（ホーム画面追加済み）かどうかを判定。未追加なら案内バナーを出す
+    setIsStandalone(
+      window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true
+    );
   }, []);
 
   useEffect(() => {
@@ -504,6 +511,15 @@ export default function Page() {
         </div>
       </header>
 
+      {/* 📱 PWA案内バナー（ホーム画面未追加かつ医院接続済みの時だけ表示。印刷・PDFには含まれない） */}
+      {!isStandalone && token && (
+        <div className="no-print max-w-[1600px] mx-auto px-4 md:px-6 pt-4">
+          <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-900 shadow-xs">
+            📱 <b>この画面のまま「ホーム画面に追加」</b>すると、次回からアイコン1タップで医院モードのまま起動できます（iPhone: 共有ボタン →「ホーム画面に追加」／ Android: メニュー →「ホーム画面に追加」）
+          </div>
+        </div>
+      )}
+
       {/* 🏥 接続状況＆担当衛生士名入力バー（モバイル・PC共通） */}
       <div className="no-print max-w-[1600px] mx-auto px-4 md:px-6 pt-4">
         <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex flex-wrap justify-between items-center gap-3 shadow-xs">
@@ -556,7 +572,7 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("denture_status", item)}
-                    className={`flex-1 py-1.5 px-2 rounded-lg border font-medium transition text-center ${
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
                       formData.denture_status === item
                         ? "bg-sky-600 text-white border-sky-600 shadow-xs"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -577,7 +593,7 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("remaining_teeth", item)}
-                    className={`flex-1 py-1.5 px-2 rounded-lg border font-medium transition text-center ${
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
                       formData.remaining_teeth === item
                         ? "bg-sky-600 text-white border-sky-600 shadow-xs"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -596,7 +612,7 @@ export default function Page() {
                 <select
                   value={formData.denture_duration}
                   onChange={(e) => handleSelect("denture_duration", e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-xs"
+                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
                 >
                   {FORM_DATA.denture_duration.map((d) => (
                     <option key={d} value={d}>{d}</option>
@@ -608,7 +624,7 @@ export default function Page() {
                 <select
                   value={formData.adjustment_history}
                   onChange={(e) => handleSelect("adjustment_history", e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-xs"
+                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
                 >
                   {FORM_DATA.adjustment_history.map((h) => (
                     <option key={h} value={h}>{h}</option>
@@ -624,7 +640,7 @@ export default function Page() {
                 <select
                   value={formData.oral_dryness}
                   onChange={(e) => handleSelect("oral_dryness", e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-xs"
+                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
                 >
                   {FORM_DATA.oral_dryness.map((od) => (
                     <option key={od} value={od}>{od}</option>
@@ -636,7 +652,7 @@ export default function Page() {
                 <select
                   value={formData.ridge_mucosa}
                   onChange={(e) => handleSelect("ridge_mucosa", e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-xs"
+                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
                 >
                   {FORM_DATA.ridge_mucosa.map((m) => (
                     <option key={m} value={m}>{m}</option>
@@ -651,7 +667,7 @@ export default function Page() {
               <select
                 value={formData.expectation_type}
                 onChange={(e) => handleSelect("expectation_type", e.target.value)}
-                className="w-full p-2 border rounded-lg bg-white border-slate-200 text-xs"
+                className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
               >
                 {FORM_DATA.expectation_type.map((ex) => (
                   <option key={ex} value={ex}>{ex}</option>
@@ -691,7 +707,7 @@ export default function Page() {
                       key={item}
                       type="button"
                       onClick={() => handleMultiSelect("current_denture_complaints", item)}
-                      className={`py-1 px-2.5 rounded-full border text-[11px] transition ${
+                      className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
                         isActive
                           ? "bg-amber-500 text-white border-amber-500 font-bold"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -715,7 +731,7 @@ export default function Page() {
                       key={item}
                       type="button"
                       onClick={() => handleMultiSelect("emotion_drivers", item)}
-                      className={`py-1 px-2.5 rounded-full border text-[11px] transition ${
+                      className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
                         isActive
                           ? "bg-emerald-600 text-white border-emerald-600 font-bold"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
@@ -740,7 +756,7 @@ export default function Page() {
                       key={item}
                       type="button"
                       onClick={() => handleMultiSelect("red_flag_words", item)}
-                      className={`py-1 px-2.5 rounded-full border text-[11px] transition ${
+                      className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
                         isActive
                           ? isRose
                             ? "bg-rose-600 text-white border-rose-600 font-bold"
@@ -762,8 +778,8 @@ export default function Page() {
                 type="text"
                 value={formData.free_memo}
                 onChange={(e) => setFormData({ ...formData, free_memo: e.target.value })}
-                placeholder="家族の同席希望、持病など"
-                className="w-full p-2 border border-slate-200 rounded-lg bg-white text-xs"
+                placeholder="家族の同席希望、持病���ど"
+                className="w-full p-2 border border-slate-200 rounded-lg bg-white text-base"
               />
             </div>
           </div>
