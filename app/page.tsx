@@ -130,7 +130,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 15:05 staffname-send + raf-bg-fix");
+    console.log("[BUILD] 2026-08-20 15:50 gen-first-pdf");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -284,30 +284,31 @@ export default function Page() {
     return pdf.output("blob");
   };
 
+  // 💡 「A4印刷」ボタン：実績済みのPDF生成エンジンでA4ぴったりのPDFを作り、新しいタブで開く
+  //    【重要】新タブを「先に」開く方式は、フォーカスを奪われた元タブがバックグラウンド化し、
+  //    生成処理（html-to-image内部のタイマー系処理を含む）が停止する不具合があった。
+  //    そのため「フォーカスのある元タブで生成を完了させてから、最後にタブを開く」順序に変更。
+  //    ポップアップがブロックされた場合はPDFダウンロードに自動フォールバックする。
   const handleOpenPrintPdf = async () => {
-    // ポップアップブロック回避のため、クリック直後の同期タイミングで先にタブを開いておく
-    const win = window.open("", "_blank");
-    // 生成中であることがわかるよう、白紙タブにメッセージを書き込む（生成完了後はPDFに置き換わる）
-    win?.document.write(
-      "<p style='font-family:sans-serif;padding:2em;color:#334155'>PDFを生成しています。数秒お待ちください…</p>"
-    );
     setPrintingPdf(true);
     try {
-      const pdfBlob = await buildSheetPdfBlob();
+      const pdfBlob = await buildSheetPdfBlob(); // ← 元タブがフォーカスを持つ間に生成を完結させる
       if (!pdfBlob) {
         alert("PDF化する領域が見つかりません。先にシートを生成してください。");
-        win?.close();
         return;
       }
       const url = URL.createObjectURL(pdfBlob);
-      if (win) {
-        win.location.href = url;
-      } else {
-        window.open(url, "_blank");
+      const win = window.open(url, "_blank");
+      if (!win) {
+        // ポップアップブロック時はダウンロードにフォールバック
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "counseling-sheet.pdf";
+        a.click();
+        alert("新しいタブがブロックされたため、PDFをダウンロードしました。ダウンロードしたPDFを開いて印刷してください。");
       }
     } catch (err: any) {
       alert("PDF生成でエラーが発生しました。詳細: " + err.message);
-      win?.close();
     } finally {
       setPrintingPdf(false);
     }
