@@ -73,18 +73,22 @@ export async function POST(req: Request) {
     const patientSheet = patientSheetMatch ? patientSheetMatch[1].trim() : answer;
     const talkScript = talkScriptMatch ? talkScriptMatch[1].trim() : "";
 
-    // ----------------------------------------------------
+   // ----------------------------------------------------
     // Supabase への利用ログ書き込み処理（遅延初期化）
     // ----------------------------------------------------
     let patientAnonId = "";
     try {
       const supabase = getSupabaseAdmin();
       const demoClinicId = "11111111-1111-1111-1111-111111111111";
+
+      // 入力フォームから送信された衛生士名を取得（未入力の場合は"衛生士"）
+      const staffName = body.staffName || body.staff_name || "衛生士";
+
       const { data: logData, error: logError } = await supabase
         .from("usage_logs")
         .insert({
           clinic_id: demoClinicId,
-          staff_name: "衛生士",
+          staff_name: staffName,
         })
         .select("patient_anon_id")
         .single();
