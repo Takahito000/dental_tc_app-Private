@@ -24,7 +24,7 @@ const FORM_DATA = {
   denture_status: ["使っている", "使っていない（初めて）"],
   remaining_teeth: ["ほとんどある", "少しある", "ほとんど無い"],
   current_denture_complaints: ["痛い", "外れやすい", "噛めない", "見た目が悪い", "話づらい", "その他"],
-  denture_duration: ["1年未満", "1〜5年", "5年以上"],
+  denture_duration: ["1年未満", "1〜5年", "5年以上", "該当なし（未使用者）", "不明"],
   adjustment_history: ["調整しても改善しない", "作り直したがダメ", "ほぼ未調整", "該当なし（未使用者）"],
   oral_dryness: ["普通", "乾いている・少ない"],
   ridge_mucosa: ["しっかり", "平坦・やせ・痛みやすい", "不明"],
@@ -131,7 +131,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 20:15 adjustment-history-sync");
+    console.log("[BUILD] 2026-08-20 20:30 options-master-sync");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -202,7 +202,20 @@ export default function Page() {
   if (!mounted) return null;
 
   const handleSelect = (key: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [key]: value };
+      // 💡 未使用者を選んだら、使用年数・調整履歴は自動で「該当なし（未使用者）」に揃える（Dify定義との整合）
+      if (key === "denture_status") {
+        if (value === "使っていない（初めて）") {
+          next.denture_duration = "該当なし（未使用者）";
+          next.adjustment_history = "該当なし（未使用者）";
+        } else {
+          if (next.denture_duration === "該当なし（未使用者）") next.denture_duration = "1〜5年";
+          if (next.adjustment_history === "該当なし（未使用者）") next.adjustment_history = "調整しても改善しない";
+        }
+      }
+      return next;
+    });
   };
 
   const handleMultiSelect = (key: "current_denture_complaints" | "emotion_drivers" | "red_flag_words", value: string) => {
