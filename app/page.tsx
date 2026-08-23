@@ -80,12 +80,12 @@ const cleanTableHtml = (html: string) => {
 
   cleaned = cleaned.replace(
     /<table[^>]*>/gi,
-    `<table style="table-layout: fixed; width: 100%; border-collapse: collapse;" class="w-full border-2 border-slate-300 text-[11.5px] my-1">${colgroupHtml}`
+    `<table style="table-layout: fixed; width: 100%; border-collapse: collapse;" class="w-full border-2 border-slate-300 text-[12.5px] my-1">${colgroupHtml}`
   );
 
   cleaned = cleaned
-    .replace(/<th/gi, '<th class="border border-slate-300 p-1 bg-slate-900 text-white text-left font-bold"')
-    .replace(/<td/gi, '<td class="border border-slate-300 p-1 text-slate-700 leading-tight font-normal"');
+    .replace(/<th/gi, '<th class="border border-slate-300 p-2 bg-slate-900 text-white text-left font-bold"')
+    .replace(/<td/gi, '<td class="border border-slate-300 p-2 text-slate-700 leading-normal font-normal"');
 
   cleaned = cleaned.replace(/<tr[^>]*>[\s\S]*?<\/(th|td)>/gi, (match) => {
     return match.replace(/<(th|td)/, '<$1 style="white-space: nowrap;"');
@@ -131,7 +131,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-20 20:45 add-edentulous-option");
+    console.log("[BUILD] 2026-08-23 19:00 premium-readability");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -878,14 +878,17 @@ export default function Page() {
                   const costSection = sheet.sections.find((s) => s.heading.includes("費用"));
 
                   const Header = () => (
-                    <div className="rounded-lg bg-gradient-to-r from-slate-900 to-sky-800 p-2.5 text-white shadow-sm mb-2 border-b-2 border-sky-500">
+                    <div className="rounded-xl bg-gradient-to-r from-slate-900 to-sky-800 p-3 text-white shadow-md mb-2 border-b-2 border-sky-500">
                       <div className="flex items-center justify-between gap-3">
-                        <h1 className="text-[16.0px] font-bold tracking-wide flex-1">{sheet.title}</h1>
-                        <div className="text-right text-[9.5px] opacity-90 leading-tight shrink-0">
+                        <div className="flex-1">
+                          <h1 className="text-[17px] font-bold tracking-wide">{sheet.title}</h1>
+                          <div className="text-[8px] tracking-[0.25em] text-sky-300 font-semibold mt-0.5">AI OBJECTIVE ANALYSIS</div>
+                        </div>
+                        <div className="text-right text-[10.5px] opacity-90 leading-tight shrink-0">
                           {cleanClinicName && (
                             <div className="font-semibold">{cleanClinicName}</div>
                           )}
-                          <div className="text-[8px] text-slate-300 mt-0.5 space-y-0.5">
+                          <div className="text-[9px] text-slate-300 mt-0.5 space-y-0.5">
                             {sheet.issueLine
                               .replace(/:\s*/g, ":")
                               .split(/[ \s]+/)
@@ -900,7 +903,7 @@ export default function Page() {
                   );
 
                   const Footer = () => (
-                    <div className="mt-auto border-t border-slate-300 pt-1.5 text-center text-[8.5px] text-slate-400 leading-normal">
+                    <div className="mt-auto border-t border-slate-300 pt-2 text-center text-[10px] text-slate-600 leading-relaxed">
                       {sheet.disclaimer}
                     </div>
                   );
@@ -916,26 +919,26 @@ export default function Page() {
                               <Bot size={25} />
                             </div>
                             <div
-                              className="relative flex-1 rounded-xl border border-sky-100 bg-sky-50/50 p-2 text-[13.0px] leading-snug text-slate-800"
+                              className="relative flex-1 rounded-xl border border-sky-100 bg-sky-50/50 p-2.5 text-[14px] leading-relaxed text-slate-800"
                               dangerouslySetInnerHTML={{ __html: renderInline(intro.body) }}
                             />
                           </div>
                         )}
                         {recommend && (
                           <div className="rounded-lg border border-slate-200 bg-white p-2 mb-2">
-                            <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[14.0px] font-bold text-slate-900 mb-1">
+                            <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                               <CheckCircle2 size={14} className="text-sky-600" />
                               {recommend.heading}
                             </div>
                             <div
-                              className="text-[12.0px] leading-snug text-slate-700"
+                              className="text-[13.5px] leading-relaxed text-slate-800"
                               dangerouslySetInnerHTML={{ __html: renderInline(recommend.body) }}
                             />
                           </div>
                         )}
                         {tableSection && (
                           <div className="rounded-lg border border-slate-200 bg-white p-2">
-                            <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[14.0px] font-bold text-slate-900 mb-1">
+                            <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                               <Sparkles size={14} className="text-amber-500" />
                               {tableSection.heading}
                             </div>
@@ -955,24 +958,24 @@ export default function Page() {
                           <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-2.5">
                             {prosCons && (
                               <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-                                <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[14.0px] font-bold text-slate-900 mb-1">
+                                <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                                   <AlertTriangle size={14} className="text-rose-500" />
                                   {prosCons.heading}
                                 </div>
                                 <div
-                                  className="text-[12.0px] leading-relaxed text-slate-700"
+                                  className="text-[13.5px] leading-loose text-slate-800"
                                   dangerouslySetInnerHTML={{ __html: renderInline(prosCons.body) }}
                                 />
                               </div>
                             )}
                             {costSection && (
                               <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-                                <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[14.0px] font-bold text-slate-900 mb-1">
+                                <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                                   <Sparkles size={14} className="text-sky-600" />
                                   {costSection.heading}
                                 </div>
                                 <div
-                                  className="text-[12.0px] leading-relaxed text-slate-700"
+                                  className="text-[13.5px] leading-loose text-slate-800"
                                   dangerouslySetInnerHTML={{ __html: renderInline(costSection.body) }}
                                 />
                               </div>
