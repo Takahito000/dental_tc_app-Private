@@ -61,7 +61,7 @@ function parsePatientSheet(raw: string) {
 
 const renderInline = (text: string) =>
   text
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-sky-900 bg-sky-100 px-1 rounded font-bold">$1</strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-900 bg-blue-100 px-1 rounded font-bold">$1</strong>')
     .replace(/\n/g, "<br/>");
 
 const TABLE_COL_WIDTHS = {
@@ -131,7 +131,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-23 19:00 premium-readability");
+    console.log("[BUILD] 2026-08-23 19:20 premium-ui-refresh");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -503,8 +503,8 @@ export default function Page() {
       <header className="no-print bg-slate-900 border-b border-slate-800 text-white py-3.5 px-6 shadow-md">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/20 border border-sky-400/30">
-              <Stethoscope className="h-5 w-5 text-sky-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20 border border-blue-400/30">
+              <Stethoscope className="h-5 w-5 text-blue-400" />
             </div>
             <div>
               <h1 className="text-base font-bold tracking-wide">AI自費義歯カウンセリング支援</h1>
@@ -513,11 +513,11 @@ export default function Page() {
           </div>
           <div className="hidden sm:flex items-center gap-4">
             <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 border border-slate-700">
-              <Building2 className="h-4 w-4 text-sky-400" />
+              <Building2 className="h-4 w-4 text-blue-400" />
               <span className="text-xs font-bold text-white">{clinicName || "CS.lab"}</span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 border border-white/10">
-              <Activity className="h-3.5 w-3.5 text-sky-400" />
+              <Activity className="h-3.5 w-3.5 text-blue-400" />
               <span className="text-xs font-medium text-slate-200">衛生士モード</span>
             </div>
           </div>
@@ -537,7 +537,7 @@ export default function Page() {
       <div className="no-print max-w-[1600px] mx-auto px-4 md:px-6 pt-4">
         <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex flex-wrap justify-between items-center gap-3 shadow-xs">
           <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-sky-600" />
+            <Building2 className="h-4 w-4 text-blue-600" />
             <span className="text-xs text-slate-500">接続状況:</span>
             <span className={`text-xs font-bold ${token && clinicName ? "text-blue-900" : "text-rose-600"}`}>
               {token
@@ -557,17 +557,17 @@ export default function Page() {
                 localStorage.setItem("staff_name", e.target.value);
               }}
               placeholder="お名前を入力"
-              className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs font-medium text-slate-800 w-36 focus:outline-none focus:border-sky-500"
+              className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 w-36 focus:outline-none focus:border-blue-500 shadow-xs"
             />
           </div>
         </div>
       </div>
 
       <div className="app-layout mx-auto grid max-w-[1600px] grid-cols-1 gap-6 p-4 md:p-6 lg:grid-cols-[400px_1fr]">
-        <section className="no-print space-y-4 bg-white p-5 rounded-xl shadow-sm border border-slate-200 h-fit">
-          <div className="flex justify-between items-center border-b pb-3">
+        <section className="no-print space-y-5 bg-white p-6 rounded-2xl shadow-md border border-slate-200 h-fit">
+          <div className="flex justify-between items-center border-b border-slate-200 pb-3">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <ShieldCheck className="text-sky-600" size={18} />
+              <ShieldCheck className="text-blue-600" size={18} />
               患者条件の入力
             </h2>
             <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2.5 py-1 rounded-md border border-slate-200">
@@ -578,16 +578,16 @@ export default function Page() {
           <div className="space-y-3.5 text-xs">
             {/* 1. 入れ歯の使用状況 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600 text-sm">1. 入れ歯の使用状況</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">1. 入れ歯の使用状況</label>
               <div className="flex gap-1.5">
                 {FORM_DATA.denture_status.map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => handleSelect("denture_status", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-xl border font-medium transition text-center ${
                       formData.denture_status === item
-                        ? "bg-sky-600 text-white border-sky-600 shadow-xs"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                     }`}
                   >
@@ -599,16 +599,16 @@ export default function Page() {
 
             {/* 2. 残っている歯 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600 text-sm">2. 残っている歯</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">2. 残っている歯</label>
               <div className="flex gap-1.5">
                 {FORM_DATA.remaining_teeth.map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => handleSelect("remaining_teeth", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-xl border font-medium transition text-center ${
                       formData.remaining_teeth === item
-                        ? "bg-sky-600 text-white border-sky-600 shadow-xs"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                     }`}
                   >
@@ -621,11 +621,11 @@ export default function Page() {
             {/* 3. 使用年数 & 4. 調整履歴 */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-bold mb-1 text-slate-600 text-sm">3. 現義歯の使用年数</label>
+                <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">3. 現義歯の使用年数</label>
                 <select
                   value={formData.denture_duration}
                   onChange={(e) => handleSelect("denture_duration", e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
+                  className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
                 >
                   {FORM_DATA.denture_duration.map((d) => (
                     <option key={d} value={d}>{d}</option>
@@ -633,11 +633,11 @@ export default function Page() {
                 </select>
               </div>
               <div>
-                <label className="block font-bold mb-1 text-slate-600 text-sm">4. 調整・履歴</label>
+                <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">4. 調整・履歴</label>
                 <select
                   value={formData.adjustment_history}
                   onChange={(e) => handleSelect("adjustment_history", e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
+                  className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
                 >
                   {FORM_DATA.adjustment_history.map((h) => (
                     <option key={h} value={h}>{h}</option>
@@ -649,11 +649,11 @@ export default function Page() {
             {/* 5. 口の乾き & 6. 顎堤・粘膜の状態 */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-bold mb-1 text-slate-600 text-sm">5. 口の乾き・唾液</label>
+                <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">5. 口の乾き・唾液</label>
                 <select
                   value={formData.oral_dryness}
                   onChange={(e) => handleSelect("oral_dryness", e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
+                  className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
                 >
                   {FORM_DATA.oral_dryness.map((od) => (
                     <option key={od} value={od}>{od}</option>
@@ -661,11 +661,11 @@ export default function Page() {
                 </select>
               </div>
               <div>
-                <label className="block font-bold mb-1 text-slate-600 text-sm">6. 顎堤・粘膜の状態</label>
+                <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">6. 顎堤・粘膜の状態</label>
                 <select
                   value={formData.ridge_mucosa}
                   onChange={(e) => handleSelect("ridge_mucosa", e.target.value)}
-                  className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
+                  className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
                 >
                   {FORM_DATA.ridge_mucosa.map((m) => (
                     <option key={m} value={m}>{m}</option>
@@ -676,11 +676,11 @@ export default function Page() {
 
             {/* 7. 期待値タイプ */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600 text-sm">7. 期待値タイプ</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">7. 期待値タイプ</label>
               <select
                 value={formData.expectation_type}
                 onChange={(e) => handleSelect("expectation_type", e.target.value)}
-                className="w-full p-2 border rounded-lg bg-white border-slate-200 text-base"
+                className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
               >
                 {FORM_DATA.expectation_type.map((ex) => (
                   <option key={ex} value={ex}>{ex}</option>
@@ -690,16 +690,16 @@ export default function Page() {
 
             {/* 8. 費用感度 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600 text-sm">8. 費用感度</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">8. 費用感度</label>
               <div className="flex gap-1.5">
                 {FORM_DATA.cost_sensitivity.map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => handleSelect("cost_sensitivity", item)}
-                    className={`flex-1 py-1.5 px-1 rounded-lg border font-medium transition text-center text-[11px] ${
+                    className={`flex-1 py-2.5 px-1 min-h-[44px] rounded-xl border font-medium transition text-center text-[11px] ${
                       formData.cost_sensitivity === item
-                        ? "bg-sky-600 text-white border-sky-600 shadow-xs"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                     }`}
                   >
@@ -711,7 +711,7 @@ export default function Page() {
 
             {/* 9. 現義歯の主な不満 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600 text-sm">9. 現義歯の主な不満（複数可）</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">9. 現義歯の主な不満（複数可）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.current_denture_complaints.map((item) => {
                   const isActive = formData.current_denture_complaints.includes(item);
@@ -722,7 +722,7 @@ export default function Page() {
                       onClick={() => handleMultiSelect("current_denture_complaints", item)}
                       className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
                         isActive
-                          ? "bg-amber-500 text-white border-amber-500 font-bold"
+                          ? "bg-amber-500 text-white border-amber-500 font-bold shadow-sm"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                       }`}
                     >
@@ -735,7 +735,7 @@ export default function Page() {
 
             {/* 10. 追求したい情緒価値 */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600 text-sm">10. 追求したい情緒価値（複数可）</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">10. 追求したい情緒価値（複数可）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.emotion_drivers.map((item) => {
                   const isActive = formData.emotion_drivers.includes(item);
@@ -746,7 +746,7 @@ export default function Page() {
                       onClick={() => handleMultiSelect("emotion_drivers", item)}
                       className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
                         isActive
-                          ? "bg-emerald-600 text-white border-emerald-600 font-bold"
+                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-sm"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                       }`}
                     >
@@ -759,7 +759,7 @@ export default function Page() {
 
             {/* 11. 要注意ワード */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600 text-sm">11. 要注意ワード（慎重モード）</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">11. 要注意ワード（慎重モード）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.red_flag_words.map((item) => {
                   const isActive = formData.red_flag_words.includes(item);
@@ -772,8 +772,8 @@ export default function Page() {
                       className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
                         isActive
                           ? isRose
-                            ? "bg-rose-600 text-white border-rose-600 font-bold"
-                            : "bg-slate-700 text-white border-slate-700 font-bold"
+                            ? "bg-rose-600 text-white border-rose-600 font-bold shadow-sm"
+                            : "bg-slate-700 text-white border-slate-700 font-bold shadow-sm"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                       }`}
                     >
@@ -786,13 +786,13 @@ export default function Page() {
 
             {/* 12. 現場メモ */}
             <div>
-              <label className="block font-bold mb-1 text-slate-600 text-sm">12. 現場メモ（任意）</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">12. 現場メモ（任意）</label>
               <input
                 type="text"
                 value={formData.free_memo}
                 onChange={(e) => setFormData({ ...formData, free_memo: e.target.value })}
                 placeholder="家族の同席希望、持病など"
-                className="w-full p-2 border border-slate-200 rounded-lg bg-white text-base"
+                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
               />
             </div>
           </div>
@@ -800,7 +800,7 @@ export default function Page() {
           <button
             onClick={handleGenerate}
             disabled={loading}
-            className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-xl shadow transition disabled:opacity-50 text-sm flex items-center justify-center gap-2 cursor-pointer mt-2"
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition disabled:opacity-50 text-base flex items-center justify-center gap-2 cursor-pointer mt-2"
           >
             {loading ? (
               <span className="flex items-center gap-2 animate-pulse">
@@ -823,7 +823,7 @@ export default function Page() {
           )}
 
           {result ? (
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col h-full">
+            <div className="bg-white p-5 rounded-2xl shadow-md border border-slate-200 flex flex-col h-full">
               <div className="no-print flex justify-between items-center border-b pb-3 mb-4">
                 <div className="flex gap-2">
                   <button
@@ -853,7 +853,7 @@ export default function Page() {
                     <button
                       onClick={handleOpenPrintPdf}
                       disabled={printingPdf}
-                      className="py-2 px-4 min-h-[44px] justify-center bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
+                      className="py-2 px-4 min-h-[44px] justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
                     >
                       <Printer size={16} /> <span className="hidden sm:inline">{printingPdf ? "PDF生成中..." : "A4印刷（PDFで開く）"}</span>
                     </button>
@@ -878,11 +878,11 @@ export default function Page() {
                   const costSection = sheet.sections.find((s) => s.heading.includes("費用"));
 
                   const Header = () => (
-                    <div className="rounded-xl bg-gradient-to-r from-slate-900 to-sky-800 p-3 text-white shadow-md mb-2 border-b-2 border-sky-500">
+                    <div className="rounded-xl bg-gradient-to-r from-slate-900 to-blue-800 p-3 text-white shadow-md mb-2 border-b-2 border-blue-500">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1">
                           <h1 className="text-[17px] font-bold tracking-wide">{sheet.title}</h1>
-                          <div className="text-[8px] tracking-[0.25em] text-sky-300 font-semibold mt-0.5">AI OBJECTIVE ANALYSIS</div>
+                          <div className="text-[8px] tracking-[0.25em] text-blue-300 font-semibold mt-0.5">AI OBJECTIVE ANALYSIS</div>
                         </div>
                         <div className="text-right text-[10.5px] opacity-90 leading-tight shrink-0">
                           {cleanClinicName && (
@@ -915,19 +915,19 @@ export default function Page() {
                         <Header />
                         {intro && (
                           <div className="flex items-start gap-2 mb-2">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-sky-500 bg-sky-50 text-sky-600 shadow-sm">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-blue-500 bg-blue-50 text-blue-600 shadow-sm">
                               <Bot size={25} />
                             </div>
                             <div
-                              className="relative flex-1 rounded-xl border border-sky-100 bg-sky-50/50 p-2.5 text-[14px] leading-relaxed text-slate-800"
+                              className="relative flex-1 rounded-xl border border-blue-100 bg-blue-50/50 p-2.5 text-[14px] leading-relaxed text-slate-800"
                               dangerouslySetInnerHTML={{ __html: renderInline(intro.body) }}
                             />
                           </div>
                         )}
                         {recommend && (
                           <div className="rounded-lg border border-slate-200 bg-white p-2 mb-2">
-                            <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
-                              <CheckCircle2 size={14} className="text-sky-600" />
+                            <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
+                              <CheckCircle2 size={14} className="text-blue-600" />
                               {recommend.heading}
                             </div>
                             <div
@@ -938,7 +938,7 @@ export default function Page() {
                         )}
                         {tableSection && (
                           <div className="rounded-lg border border-slate-200 bg-white p-2">
-                            <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
+                            <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                               <Sparkles size={14} className="text-amber-500" />
                               {tableSection.heading}
                             </div>
@@ -958,7 +958,7 @@ export default function Page() {
                           <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-2.5">
                             {prosCons && (
                               <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-                                <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
+                                <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                                   <AlertTriangle size={14} className="text-rose-500" />
                                   {prosCons.heading}
                                 </div>
@@ -970,8 +970,8 @@ export default function Page() {
                             )}
                             {costSection && (
                               <div className="rounded-lg border border-slate-200 bg-white p-2.5">
-                                <div className="flex items-center gap-1 border-l-4 border-sky-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
-                                  <Sparkles size={14} className="text-sky-600" />
+                                <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
+                                  <Sparkles size={14} className="text-blue-600" />
                                   {costSection.heading}
                                 </div>
                                 <div
