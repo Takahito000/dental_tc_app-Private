@@ -87,9 +87,6 @@ const cleanTableHtml = (html: string) => {
     .replace(/<th/gi, '<th class="border border-slate-300 p-2 bg-slate-900 text-white text-left font-bold"')
     .replace(/<td/gi, '<td class="border border-slate-300 p-2 text-slate-700 leading-normal font-normal"');
 
-  cleaned = cleaned.replace(/<tr[^>]*>[\s\S]*?<\/(th|td)>/gi, (match) => {
-    return match.replace(/<(th|td)/, '<$1 style="white-space: nowrap;"');
-  });
 
   return cleaned;
 };
@@ -131,7 +128,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-23 20:15 form-cards-autofit");
+    console.log("[BUILD] 2026-08-23 21:00 denpist-rebrand");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -520,8 +517,8 @@ export default function Page() {
               <Stethoscope className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-base font-bold tracking-wide">AI自費義歯カウンセリング支援</h1>
-              <p className="text-xs text-slate-500">Dental Treatment Coordinator Suite</p>
+              <h1 className="text-base font-bold tracking-wide">デンピストAI</h1>
+              <p className="text-xs text-slate-500">Denpist AI｜AI自費義歯カウンセリング支援</p>
             </div>
           </div>
           <div className="hidden sm:flex items-center gap-4">
@@ -748,7 +745,7 @@ export default function Page() {
 
             {/* 10. 追求したい情緒価値 */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">10. 追求したい情緒価値（複数可��</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">10. 追求したい情緒価値（複数可）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.emotion_drivers.map((item) => {
                   const isActive = formData.emotion_drivers.includes(item);
@@ -968,7 +965,7 @@ export default function Page() {
                       {(prosCons || costSection) && (
                         <A4PageWrapper isLast>
                           <Header />
-                          <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-2.5">
+                          <div className="grid grid-cols-1 gap-2.5">
                             {prosCons && (
                               <div className="rounded-xl border border-slate-200 bg-white p-3.5">
                                 <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
@@ -1005,7 +1002,7 @@ export default function Page() {
                 {activeTab === "talk" && (
                   <div className="no-print bg-amber-50/80 p-5 rounded-xl border border-amber-200 w-full max-w-3xl">
                     <div className="bg-amber-100 text-amber-900 p-3 rounded-lg text-xs font-bold flex items-center gap-2 mb-4 border border-amber-300">
-                      <AlertTriangle size={16} /> 患者様には見せないでください（衛生士専用トークガイド）
+                      <AlertTriangle size={16} /> 患者様には見せないでください（衛生士専用トークガイド））
                     </div>
                     <div
                       className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"

@@ -10,10 +10,10 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata = {
-  title: "AI自費義歯カウンセリング支援",
-  description: "Dental Treatment Coordinator Suite",
+  title: "デンピストAI｜AI自費義歯カウンセリング支援",
+  description: "Denpist AI — 歯科衛生士のための自費義歯カウンセリング支援ツール",
   // 💡 PWA化: iOSでホーム画面に追加した際にアプリとして起動させる
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "TCシート" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "デンピストAI" },
 };
 
 // 💡 PWA化: ブラウザのテーマカラー（アプリヘッダーの紺色に合わせる）
