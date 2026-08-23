@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   Bot,
   Send,
-  Plus,
 } from "lucide-react";
 
 // A4縦 @96dpi: 210mm×297mm ≒ 794×1123px
@@ -132,7 +131,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-23 19:40 stitch-structural");
+    console.log("[BUILD] 2026-08-23 20:15 form-cards-autofit");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -400,6 +399,17 @@ export default function Page() {
 
   const cleanClinicName = clinicName.replace(/様$/, "");
 
+  // 💡 A4から内容がはみ出した時だけ中身を自動縮小（高齢者向けの大きめ文字は維持し、はみ出し分だけ縮める）
+  const fitContentToA4 = (el: HTMLDivElement | null) => {
+    if (!el) return;
+    el.style.zoom = "1";
+    const available = A4_HEIGHT_PX - 91; // 上下の余白（12mm≒45px×2）を差し引いた利用可能な高さ
+    const measured = el.scrollHeight;
+    if (measured > available) {
+      el.style.zoom = String(Math.max(0.7, available / measured));
+    }
+  };
+
   const A4PageWrapper = ({ children, isLast }: { children: React.ReactNode, isLast?: boolean }) => (
     <div 
       className="print-wrapper" 
@@ -419,41 +429,15 @@ export default function Page() {
           overflow: "hidden"
         }}
       >
-        {children}
+        <div ref={fitContentToA4} style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+          {children}
+        </div>
       </div>
     </div>
   );
 
   return (
-    <main className="min-h-screen bg-slate-100 font-sans text-slate-800 lg:pl-64">
-      {/* 🗂 サイドバー（デスクトップのみ表示・実在する機能のみ配置） */}
-      <aside className="no-print hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col bg-white border-r border-slate-200 py-6 z-40">
-        <div className="px-6 mb-6">
-          <div className="text-sm font-bold text-slate-900 tracking-tight leading-snug">AI自費義歯カウンセリング支援</div>
-          <div className="text-[11px] text-slate-500 mt-1">Dental Treatment Coordinator Suite</div>
-        </div>
-        <div className="px-4 mb-6">
-          <button
-            type="button"
-            onClick={() => {
-              setResult(null);
-              setError(null);
-              window.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="w-full bg-blue-600 text-white font-bold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition shadow-md"
-          >
-            <Plus size={16} /> 新規カウンセリング
-          </button>
-        </div>
-        <div className="px-4 flex-1">
-          <div className={`rounded-xl px-3 py-2.5 text-xs font-semibold border ${token && clinicName ? "bg-blue-50 border-blue-200 text-blue-800" : "bg-slate-50 border-slate-200 text-slate-500"}`}>
-            {token && clinicName ? `接続OK: ${clinicName}` : "医院未接続"}
-          </div>
-        </div>
-        <div className="mt-auto px-6 pt-4 border-t border-slate-100 text-[10px] text-slate-400">
-          CS.lab / Dental TC Suite
-        </div>
-      </aside>
+    <main className="min-h-screen bg-slate-100 font-sans text-slate-800">
       <style dangerouslySetInnerHTML={{ __html: `
         .sheet-page-portrait table {
           table-layout: fixed !important;
@@ -529,7 +513,7 @@ export default function Page() {
         }
       ` }} />
 
-      <header className="no-print lg:hidden bg-white border-b border-slate-200 text-slate-900 py-3.5 px-6 shadow-sm">
+      <header className="no-print bg-white border-b border-slate-200 text-slate-900 py-3.5 px-6 shadow-sm">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 border border-blue-600 shadow-sm">
@@ -593,8 +577,8 @@ export default function Page() {
       </div>
 
       <div className="app-layout mx-auto grid max-w-[1600px] grid-cols-1 gap-6 p-4 md:p-6 lg:grid-cols-[400px_1fr]">
-        <section className="no-print space-y-5 bg-white p-6 rounded-2xl shadow-md border border-slate-200 h-fit">
-          <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+        <section className="no-print space-y-3 h-fit">
+          <div className="flex justify-between items-center bg-white rounded-2xl shadow-md border border-slate-200 px-5 py-4">
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
               <ShieldCheck className="text-blue-600" size={18} />
               患者条件の入力
@@ -604,9 +588,9 @@ export default function Page() {
             </span>
           </div>
 
-          <div className="space-y-3.5 text-xs">
+          <div className="space-y-3 text-xs">
             {/* 1. 入れ歯の使用状況 */}
-            <div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">1. 入れ歯の使用状況</label>
               <div className="flex gap-1.5">
                 {FORM_DATA.denture_status.map((item) => (
@@ -614,13 +598,12 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("denture_status", item)}
-                    className={`flex-1 py-2.5 px-3 min-h-[44px] rounded-xl border font-medium transition text-left flex items-center gap-2.5 ${
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-xl border font-medium transition text-center ${
                       formData.denture_status === item
-                        ? "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-400"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
                     }`}
                   >
-                    <span className={`h-4 w-4 shrink-0 rounded-full border-2 transition ${formData.denture_status === item ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white"}`} />
                     {item}
                   </button>
                 ))}
@@ -628,21 +611,20 @@ export default function Page() {
             </div>
 
             {/* 2. 残っている歯 */}
-            <div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">2. 残っている歯</label>
-              <div className="flex gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {FORM_DATA.remaining_teeth.map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => handleSelect("remaining_teeth", item)}
-                    className={`flex-1 py-2.5 px-3 min-h-[44px] rounded-xl border font-medium transition text-left flex items-center gap-2.5 ${
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-xl border font-medium transition text-center ${
                       formData.remaining_teeth === item
-                        ? "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-400"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
                     }`}
                   >
-                    <span className={`h-4 w-4 shrink-0 rounded-full border-2 transition ${formData.remaining_teeth === item ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white"}`} />
                     {item}
                   </button>
                 ))}
@@ -650,7 +632,7 @@ export default function Page() {
             </div>
 
             {/* 3. 使用年数 & 4. 調整履歴 */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <div>
                 <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">3. 現義歯の使用年数</label>
                 <select
@@ -678,7 +660,7 @@ export default function Page() {
             </div>
 
             {/* 5. 口の乾き & 6. 顎堤・粘膜の状態 */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <div>
                 <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">5. 口の乾き・唾液</label>
                 <select
@@ -706,7 +688,7 @@ export default function Page() {
             </div>
 
             {/* 7. 期待値タイプ */}
-            <div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">7. 期待値タイプ</label>
               <select
                 value={formData.expectation_type}
@@ -720,7 +702,7 @@ export default function Page() {
             </div>
 
             {/* 8. 費用感度 */}
-            <div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">8. 費用感度</label>
               <div className="flex gap-1.5">
                 {FORM_DATA.cost_sensitivity.map((item) => (
@@ -728,13 +710,12 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("cost_sensitivity", item)}
-                    className={`flex-1 py-2.5 px-2.5 min-h-[44px] rounded-xl border font-medium transition text-left text-[11px] flex items-center gap-2 ${
+                    className={`flex-1 py-2.5 px-1 min-h-[44px] rounded-xl border font-medium transition text-center text-[11px] ${
                       formData.cost_sensitivity === item
-                        ? "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-400"
+                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
                     }`}
                   >
-                    <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 transition ${formData.cost_sensitivity === item ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white"}`} />
                     {item}
                   </button>
                 ))}
@@ -742,7 +723,7 @@ export default function Page() {
             </div>
 
             {/* 9. 現義歯の主な不満 */}
-            <div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">9. 現義歯の主な不満（複数可）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.current_denture_complaints.map((item) => {
@@ -766,7 +747,7 @@ export default function Page() {
             </div>
 
             {/* 10. 追求したい情緒価値 */}
-            <div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">10. 追求したい情緒価値（複数可��</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.emotion_drivers.map((item) => {
@@ -790,7 +771,7 @@ export default function Page() {
             </div>
 
             {/* 11. 要注意ワード */}
-            <div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">11. 要注意ワード（慎重モード）</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.red_flag_words.map((item) => {
@@ -817,7 +798,7 @@ export default function Page() {
             </div>
 
             {/* 12. 現場メモ */}
-            <div>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
               <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">12. 現場メモ（任意）</label>
               <input
                 type="text"
