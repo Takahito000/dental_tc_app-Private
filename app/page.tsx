@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Bot,
   Send,
+  Plus,
 } from "lucide-react";
 
 // A4縦 @96dpi: 210mm×297mm ≒ 794×1123px
@@ -131,7 +132,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-23 19:20 premium-ui-refresh");
+    console.log("[BUILD] 2026-08-23 19:40 stitch-structural");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -424,7 +425,35 @@ export default function Page() {
   );
 
   return (
-    <main className="min-h-screen bg-slate-100 font-sans text-slate-800">
+    <main className="min-h-screen bg-slate-100 font-sans text-slate-800 lg:pl-64">
+      {/* 🗂 サイドバー（デスクトップのみ表示・実在する機能のみ配置） */}
+      <aside className="no-print hidden lg:flex fixed left-0 top-0 h-screen w-64 flex-col bg-white border-r border-slate-200 py-6 z-40">
+        <div className="px-6 mb-6">
+          <div className="text-sm font-bold text-slate-900 tracking-tight leading-snug">AI自費義歯カウンセリング支援</div>
+          <div className="text-[11px] text-slate-500 mt-1">Dental Treatment Coordinator Suite</div>
+        </div>
+        <div className="px-4 mb-6">
+          <button
+            type="button"
+            onClick={() => {
+              setResult(null);
+              setError(null);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="w-full bg-blue-600 text-white font-bold text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition shadow-md"
+          >
+            <Plus size={16} /> 新規カウンセリング
+          </button>
+        </div>
+        <div className="px-4 flex-1">
+          <div className={`rounded-xl px-3 py-2.5 text-xs font-semibold border ${token && clinicName ? "bg-blue-50 border-blue-200 text-blue-800" : "bg-slate-50 border-slate-200 text-slate-500"}`}>
+            {token && clinicName ? `接続OK: ${clinicName}` : "医院未接続"}
+          </div>
+        </div>
+        <div className="mt-auto px-6 pt-4 border-t border-slate-100 text-[10px] text-slate-400">
+          CS.lab / Dental TC Suite
+        </div>
+      </aside>
       <style dangerouslySetInnerHTML={{ __html: `
         .sheet-page-portrait table {
           table-layout: fixed !important;
@@ -500,25 +529,25 @@ export default function Page() {
         }
       ` }} />
 
-      <header className="no-print bg-slate-900 border-b border-slate-800 text-white py-3.5 px-6 shadow-md">
+      <header className="no-print lg:hidden bg-white border-b border-slate-200 text-slate-900 py-3.5 px-6 shadow-sm">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/20 border border-blue-400/30">
-              <Stethoscope className="h-5 w-5 text-blue-400" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 border border-blue-600 shadow-sm">
+              <Stethoscope className="h-5 w-5 text-white" />
             </div>
             <div>
               <h1 className="text-base font-bold tracking-wide">AI自費義歯カウンセリング支援</h1>
-              <p className="text-xs text-slate-400">Dental Treatment Coordinator Suite</p>
+              <p className="text-xs text-slate-500">Dental Treatment Coordinator Suite</p>
             </div>
           </div>
           <div className="hidden sm:flex items-center gap-4">
-            <div className="flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-1.5 border border-slate-700">
-              <Building2 className="h-4 w-4 text-blue-400" />
-              <span className="text-xs font-bold text-white">{clinicName || "CS.lab"}</span>
+            <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 border border-slate-200">
+              <Building2 className="h-4 w-4 text-blue-600" />
+              <span className="text-xs font-bold text-slate-900">{clinicName || "CS.lab"}</span>
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 border border-white/10">
-              <Activity className="h-3.5 w-3.5 text-blue-400" />
-              <span className="text-xs font-medium text-slate-200">衛生士モード</span>
+            <div className="flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 border border-blue-200">
+              <Activity className="h-3.5 w-3.5 text-blue-600" />
+              <span className="text-xs font-medium text-blue-700">衛生士モード</span>
             </div>
           </div>
         </div>
@@ -585,12 +614,13 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("denture_status", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-xl border font-medium transition text-center ${
+                    className={`flex-1 py-2.5 px-3 min-h-[44px] rounded-xl border font-medium transition text-left flex items-center gap-2.5 ${
                       formData.denture_status === item
-                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        ? "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-400"
                     }`}
                   >
+                    <span className={`h-4 w-4 shrink-0 rounded-full border-2 transition ${formData.denture_status === item ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white"}`} />
                     {item}
                   </button>
                 ))}
@@ -606,12 +636,13 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("remaining_teeth", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-xl border font-medium transition text-center ${
+                    className={`flex-1 py-2.5 px-3 min-h-[44px] rounded-xl border font-medium transition text-left flex items-center gap-2.5 ${
                       formData.remaining_teeth === item
-                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        ? "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-400"
                     }`}
                   >
+                    <span className={`h-4 w-4 shrink-0 rounded-full border-2 transition ${formData.remaining_teeth === item ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white"}`} />
                     {item}
                   </button>
                 ))}
@@ -697,12 +728,13 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("cost_sensitivity", item)}
-                    className={`flex-1 py-2.5 px-1 min-h-[44px] rounded-xl border font-medium transition text-center text-[11px] ${
+                    className={`flex-1 py-2.5 px-2.5 min-h-[44px] rounded-xl border font-medium transition text-left text-[11px] flex items-center gap-2 ${
                       formData.cost_sensitivity === item
-                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        ? "border-blue-600 bg-blue-50 text-blue-900 shadow-sm"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-400"
                     }`}
                   >
+                    <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 transition ${formData.cost_sensitivity === item ? "border-blue-600 bg-blue-600" : "border-slate-300 bg-white"}`} />
                     {item}
                   </button>
                 ))}
@@ -735,7 +767,7 @@ export default function Page() {
 
             {/* 10. 追求したい情緒価値 */}
             <div>
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">10. 追求したい情緒価値（複数可）</label>
+              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">10. 追求したい情緒価値（複数可��</label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.emotion_drivers.map((item) => {
                   const isActive = formData.emotion_drivers.includes(item);
@@ -828,20 +860,20 @@ export default function Page() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setActiveTab("patient")}
-                    className={`py-2 px-4 min-h-[44px] justify-center rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                    className={`py-2 px-3 sm:px-4 min-h-[44px] justify-center font-bold text-xs transition flex items-center gap-1.5 ${
                       activeTab === "patient"
-                        ? "bg-slate-900 text-white shadow"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        ? "text-blue-700 border-b-2 border-blue-600"
+                        : "text-slate-500 hover:text-slate-900 border-b-2 border-transparent"
                     }`}
                   >
                     <FileText size={16} /> <span className="hidden sm:inline">A4提案シート (患者用)</span>
                   </button>
                   <button
                     onClick={() => setActiveTab("talk")}
-                    className={`py-2 px-4 min-h-[44px] justify-center rounded-lg font-bold text-xs transition flex items-center gap-1.5 ${
+                    className={`py-2 px-3 sm:px-4 min-h-[44px] justify-center font-bold text-xs transition flex items-center gap-1.5 ${
                       activeTab === "talk"
-                        ? "bg-amber-100 text-amber-900 border border-amber-300 shadow-sm"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        ? "text-amber-700 border-b-2 border-amber-500"
+                        : "text-slate-500 hover:text-slate-900 border-b-2 border-transparent"
                     }`}
                   >
                     <MessageSquare size={16} /> <span className="hidden sm:inline">トークカンペ (画面専用)</span>
@@ -853,14 +885,14 @@ export default function Page() {
                     <button
                       onClick={handleOpenPrintPdf}
                       disabled={printingPdf}
-                      className="py-2 px-4 min-h-[44px] justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
+                      className="py-2 px-4 min-h-[44px] justify-center bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                     >
                       <Printer size={16} /> <span className="hidden sm:inline">{printingPdf ? "PDF生成中..." : "A4印刷（PDFで開く）"}</span>
                     </button>
                     <button
                       onClick={handleSendPrint}
                       disabled={sending}
-                      className="py-2 px-4 min-h-[44px] justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
+                      className="py-2 px-4 min-h-[44px] justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
                     >
                       <Send size={16} /> <span className="hidden sm:inline">{sending ? "送信中..." : "印刷（医院へ送信）"}</span>
                     </button>
@@ -878,17 +910,17 @@ export default function Page() {
                   const costSection = sheet.sections.find((s) => s.heading.includes("費用"));
 
                   const Header = () => (
-                    <div className="rounded-xl bg-gradient-to-r from-slate-900 to-blue-800 p-3 text-white shadow-md mb-2 border-b-2 border-blue-500">
+                    <div className="rounded-xl bg-white border border-slate-200 border-b-2 border-b-slate-800 px-4 py-3 text-slate-900 shadow-sm mb-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1">
                           <h1 className="text-[17px] font-bold tracking-wide">{sheet.title}</h1>
-                          <div className="text-[8px] tracking-[0.25em] text-blue-300 font-semibold mt-0.5">AI OBJECTIVE ANALYSIS</div>
+                          <div className="text-[8px] tracking-[0.25em] text-blue-600 font-semibold mt-0.5">AI OBJECTIVE ANALYSIS</div>
                         </div>
                         <div className="text-right text-[10.5px] opacity-90 leading-tight shrink-0">
                           {cleanClinicName && (
                             <div className="font-semibold">{cleanClinicName}</div>
                           )}
-                          <div className="text-[9px] text-slate-300 mt-0.5 space-y-0.5">
+                          <div className="text-[9px] text-slate-500 mt-0.5 space-y-0.5">
                             {sheet.issueLine
                               .replace(/:\s*/g, ":")
                               .split(/[ \s]+/)
@@ -919,13 +951,13 @@ export default function Page() {
                               <Bot size={25} />
                             </div>
                             <div
-                              className="relative flex-1 rounded-xl border border-blue-100 bg-blue-50/50 p-2.5 text-[14px] leading-relaxed text-slate-800"
+                              className="relative flex-1 rounded-xl border border-blue-100 bg-blue-50/50 p-3 text-[14px] leading-relaxed text-slate-800"
                               dangerouslySetInnerHTML={{ __html: renderInline(intro.body) }}
                             />
                           </div>
                         )}
                         {recommend && (
-                          <div className="rounded-lg border border-slate-200 bg-white p-2 mb-2">
+                          <div className="rounded-xl border border-slate-200 bg-white p-3 mb-2">
                             <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                               <CheckCircle2 size={14} className="text-blue-600" />
                               {recommend.heading}
@@ -937,7 +969,7 @@ export default function Page() {
                           </div>
                         )}
                         {tableSection && (
-                          <div className="rounded-lg border border-slate-200 bg-white p-2">
+                          <div className="rounded-xl border border-slate-200 bg-white p-3">
                             <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                               <Sparkles size={14} className="text-amber-500" />
                               {tableSection.heading}
@@ -957,7 +989,7 @@ export default function Page() {
                           <Header />
                           <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-2.5">
                             {prosCons && (
-                              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                              <div className="rounded-xl border border-slate-200 bg-white p-3.5">
                                 <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                                   <AlertTriangle size={14} className="text-rose-500" />
                                   {prosCons.heading}
@@ -969,7 +1001,7 @@ export default function Page() {
                               </div>
                             )}
                             {costSection && (
-                              <div className="rounded-lg border border-slate-200 bg-white p-2.5">
+                              <div className="rounded-xl border border-slate-200 bg-white p-3.5">
                                 <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
                                   <Sparkles size={14} className="text-blue-600" />
                                   {costSection.heading}
