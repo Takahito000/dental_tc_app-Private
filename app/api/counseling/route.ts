@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const rawEnvUrl = (process.env.DIFY_API_URL || "https://api.dify.ai/v1").replace(/[\[\]\(\)'"\s]/g, "").trim();
     const urlMatch = rawEnvUrl.match(/(https?:\/\/[^\/]+\/v1)/);
     const baseUrl = urlMatch ? urlMatch[1] : "https://api.dify.ai/v1";
-    
+
     // 送信先URLを生成
     const targetUrl = `${baseUrl}/completion-messages`;
 
@@ -82,17 +82,17 @@ export async function POST(req: Request) {
     let patientSheet = patientSheetMatch ? patientSheetMatch[1].trim() : answer;
     const talkScript = talkScriptMatch ? talkScriptMatch[1].trim() : "";
 
-   // ----------------------------------------------------
+    // ----------------------------------------------------
     // Supabase への利用ログ書き込み処理（遅延初期化）
     // ----------------------------------------------------
     let patientAnonId = "";
+    let clinicId: string | null = null;
     try {
       const supabase = getSupabaseAdmin();
 
       // 💡 アクセストークンから医院を特定し、ログの clinic_id を動的化する
       //    （固定IDのままだと、医院別の利用集計・課金カウント・ヘルススコア監視が全て壊れるため）
       const clinicToken = (body.token || body.access_token || "").toString().trim();
-      let clinicId: string | null = null;
       if (clinicToken) {
         const { data: clinic } = await supabase
           .from("clinics")
@@ -142,6 +142,35 @@ export async function POST(req: Request) {
     } else {
       // 採番に失敗した場合は「管理ID: 」の部分だけを除去する
       patientSheet = patientSheet.replace(/管理ID[:：]\s*\[\[PATIENT_ID\]\][　\s]*/g, "");
+    }
+
+    // ----------------------------------------------------
+    // 💡 生成内容の保存（generation_logs）— 遠隔地の医院でも生成物を後から監修・レビューできるようにする
+    //    （無償モニター期間の品質検証・判例収集の基盤。失敗しても生成応答自体は必ず返す）
+    // ----------------------------------------------------
+    try {
+      if (clinicId) {
+        const supabase = getSupabaseAdmin();
+        // トークンはログに残さない（認証情報の保存を避ける）
+        const logInputs = { ...body };
+        delete logInputs.token;
+        delete logInputs.access_token;
+        const { error: genLogError } = await supabase.from("generation_logs").insert({
+          clinic_id: clinicId,
+          patient_anon_id: patientAnonId || null,
+          staff_name: staffName || null,
+          inputs: logInputs,
+          patient_sheet: patientSheet,
+          talk_script: talkScript,
+        });
+        if (genLogError) {
+          console.warn("Generation Log Warning:", genLogError.message);
+        } else {
+          console.log("Generation Log Created:", patientAnonId, "clinic:", clinicId);
+        }
+      }
+    } catch (genLogErr) {
+      console.error("Generation Log Error:", genLogErr);
     }
 
     return NextResponse.json({
