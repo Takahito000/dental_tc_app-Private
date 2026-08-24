@@ -128,7 +128,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-23 21:00 denpist-rebrand");
+    console.log("[BUILD] 2026-08-24 22:15 print-resolution-3x");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -300,8 +300,8 @@ export default function Page() {
       const pageEl = pages[i] as HTMLElement;
 
       const dataUrl = await toJpeg(pageEl, {
-        quality: 0.85,
-        pixelRatio: 2,
+        quality: 0.95,
+        pixelRatio: 3,
         backgroundColor: "#ffffff",
         width: A4_WIDTH_PX,
         height: A4_HEIGHT_PX,
