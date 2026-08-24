@@ -103,7 +103,7 @@ export default function Page() {
   const [formData, setFormData] = useState({
     denture_status: "使っている",
     remaining_teeth: "ほとんど無い",
-    current_denture_complaints: ["痛い"],
+    current_denture_complaints: [],
     denture_duration: "1〜5年",
     adjustment_history: "調整しても改善しない",
     oral_dryness: "普通",
@@ -128,7 +128,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-24 22:15 print-resolution-3x");
+    console.log("[BUILD] 2026-08-24 22:45 form-logic-shape-color");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -206,6 +206,8 @@ export default function Page() {
         if (value === "使っていない（初めて）") {
           next.denture_duration = "該当なし（未使用者）";
           next.adjustment_history = "該当なし（未使用者）";
+          // 💡 未使用者に現義歯の不満は存在しないため、選択を自動で空にする
+          next.current_denture_complaints = [];
         } else {
           if (next.denture_duration === "該当なし（未使用者）") next.denture_duration = "1〜5年";
           if (next.adjustment_history === "該当なし（未使用者）") next.adjustment_history = "調整しても改善しない";
@@ -595,7 +597,7 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("denture_status", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-xl border font-medium transition text-center ${
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
                       formData.denture_status === item
                         ? "bg-blue-600 text-white border-blue-600 shadow-md"
                         : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
@@ -616,7 +618,7 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("remaining_teeth", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-xl border font-medium transition text-center ${
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
                       formData.remaining_teeth === item
                         ? "bg-blue-600 text-white border-blue-600 shadow-md"
                         : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
@@ -635,11 +637,17 @@ export default function Page() {
                 <select
                   value={formData.denture_duration}
                   onChange={(e) => handleSelect("denture_duration", e.target.value)}
-                  className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                  className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
                 >
-                  {FORM_DATA.denture_duration.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
+                  {FORM_DATA.denture_duration
+                    .filter((d) =>
+                      formData.denture_status === "使っていない（初めて）"
+                        ? d === "該当なし（未使用者）"
+                        : d !== "該当なし（未使用者）"
+                    )
+                    .map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
                 </select>
               </div>
               <div>
@@ -647,11 +655,17 @@ export default function Page() {
                 <select
                   value={formData.adjustment_history}
                   onChange={(e) => handleSelect("adjustment_history", e.target.value)}
-                  className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                  className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
                 >
-                  {FORM_DATA.adjustment_history.map((h) => (
-                    <option key={h} value={h}>{h}</option>
-                  ))}
+                  {FORM_DATA.adjustment_history
+                    .filter((h) =>
+                      formData.denture_status === "使っていない（初めて）"
+                        ? h === "該当なし（未使用者）"
+                        : h !== "該当なし（未使用者）"
+                    )
+                    .map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
                 </select>
               </div>
             </div>
@@ -663,7 +677,7 @@ export default function Page() {
                 <select
                   value={formData.oral_dryness}
                   onChange={(e) => handleSelect("oral_dryness", e.target.value)}
-                  className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                  className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
                 >
                   {FORM_DATA.oral_dryness.map((od) => (
                     <option key={od} value={od}>{od}</option>
@@ -675,7 +689,7 @@ export default function Page() {
                 <select
                   value={formData.ridge_mucosa}
                   onChange={(e) => handleSelect("ridge_mucosa", e.target.value)}
-                  className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                  className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
                 >
                   {FORM_DATA.ridge_mucosa.map((m) => (
                     <option key={m} value={m}>{m}</option>
@@ -690,7 +704,7 @@ export default function Page() {
               <select
                 value={formData.expectation_type}
                 onChange={(e) => handleSelect("expectation_type", e.target.value)}
-                className="w-full p-2.5 border rounded-xl bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
               >
                 {FORM_DATA.expectation_type.map((ex) => (
                   <option key={ex} value={ex}>{ex}</option>
@@ -707,7 +721,7 @@ export default function Page() {
                     key={item}
                     type="button"
                     onClick={() => handleSelect("cost_sensitivity", item)}
-                    className={`flex-1 py-2.5 px-1 min-h-[44px] rounded-xl border font-medium transition text-center text-[11px] ${
+                    className={`flex-1 py-2.5 px-1 min-h-[44px] rounded-lg border font-medium transition text-center text-[11px] ${
                       formData.cost_sensitivity === item
                         ? "bg-blue-600 text-white border-blue-600 shadow-md"
                         : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
@@ -730,9 +744,9 @@ export default function Page() {
                       key={item}
                       type="button"
                       onClick={() => handleMultiSelect("current_denture_complaints", item)}
-                      className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
+                      className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
                         isActive
-                          ? "bg-amber-500 text-white border-amber-500 font-bold shadow-sm"
+                          ? "bg-blue-600 text-white border-blue-600 font-bold shadow-md"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                       }`}
                     >
@@ -754,9 +768,9 @@ export default function Page() {
                       key={item}
                       type="button"
                       onClick={() => handleMultiSelect("emotion_drivers", item)}
-                      className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
+                      className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
                         isActive
-                          ? "bg-emerald-600 text-white border-emerald-600 font-bold shadow-sm"
+                          ? "bg-blue-600 text-white border-blue-600 font-bold shadow-md"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                       }`}
                     >
@@ -779,10 +793,10 @@ export default function Page() {
                       key={item}
                       type="button"
                       onClick={() => handleMultiSelect("red_flag_words", item)}
-                      className={`py-2 px-3 min-h-[44px] rounded-full border text-xs transition ${
+                      className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
                         isActive
                           ? isRose
-                            ? "bg-rose-600 text-white border-rose-600 font-bold shadow-sm"
+                            ? "bg-rose-50 text-rose-700 border-rose-600 font-bold shadow-sm"
                             : "bg-slate-700 text-white border-slate-700 font-bold shadow-sm"
                           : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                       }`}
@@ -802,7 +816,7 @@ export default function Page() {
                 value={formData.free_memo}
                 onChange={(e) => setFormData({ ...formData, free_memo: e.target.value })}
                 placeholder="家族の同席希望、持病など"
-                className="w-full p-2.5 border border-slate-300 rounded-xl bg-white text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
               />
             </div>
           </div>
@@ -810,7 +824,7 @@ export default function Page() {
           <button
             onClick={handleGenerate}
             disabled={loading}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg transition disabled:opacity-50 text-base flex items-center justify-center gap-2 cursor-pointer mt-2"
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg transition disabled:opacity-50 text-base flex items-center justify-center gap-2 cursor-pointer mt-2"
           >
             {loading ? (
               <span className="flex items-center gap-2 animate-pulse">
