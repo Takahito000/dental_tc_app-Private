@@ -103,7 +103,7 @@ export default function Page() {
   const [formData, setFormData] = useState({
     denture_status: "使っている",
     remaining_teeth: "ほとんど無い",
-    current_denture_complaints: [],
+    current_denture_complaints: [] as string[],
     denture_duration: "1〜5年",
     adjustment_history: "調整しても改善しない",
     oral_dryness: "普通",
@@ -128,7 +128,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-24 22:45 form-logic-shape-color");
+    console.log("[BUILD] 2026-08-24 23:10 fix-never-array-type");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -1016,7 +1016,7 @@ export default function Page() {
                 {activeTab === "talk" && (
                   <div className="no-print bg-amber-50/80 p-5 rounded-xl border border-amber-200 w-full max-w-3xl">
                     <div className="bg-amber-100 text-amber-900 p-3 rounded-lg text-xs font-bold flex items-center gap-2 mb-4 border border-amber-300">
-                      <AlertTriangle size={16} /> 患者様には見せないでください（衛生士専用トークガイド））
+                      <AlertTriangle size={16} /> 患者様には���せないでください（衛生士専用トークガイド））
                     </div>
                     <div
                       className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"
