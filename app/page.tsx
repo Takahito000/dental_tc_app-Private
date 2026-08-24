@@ -118,6 +118,8 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState<{ patientSheet: string; talkScript: string } | null>(null);
+  // 💡 生成時に発番される管理ID（医院へ送信のメール本文で使用するため保持する）
+  const [patientAnonId, setPatientAnonId] = useState("");
   const [activeTab, setActiveTab] = useState<"patient" | "talk">("patient");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -128,7 +130,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-24 23:30 fix-email-patient-id");
+    console.log("[BUILD] 2026-08-24 23:45 fix-anon-id-state");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -264,6 +266,7 @@ export default function Page() {
           patientSheet: data.patientSheet,
           talkScript: data.talkScript,
         });
+        setPatientAnonId(data.patientAnonId || "");
       } else {
         setError("AI生成エラー: " + (data.error || "通信エラー"));
       }
@@ -376,7 +379,7 @@ export default function Page() {
       sendData.append("staff_name", currentStaff); // 👈 衛生士名
       sendData.append("clinic_name", clinicName);
       // 💡 生成時にSupabaseが発番した本物の管理IDを送る（固定値 "A101" は初期テストの残滓で、メール本文の患者IDが常にA101になる原因だった）
-      sendData.append("patient_anon_id", result?.patientAnonId || "");
+      sendData.append("patient_anon_id", patientAnonId || "");
       sendData.append("pdfFile", pdfBlob, "sheet.pdf");
 
       const res = await fetch("/api/print", {
