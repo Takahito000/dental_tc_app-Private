@@ -128,7 +128,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-24 23:10 fix-never-array-type");
+    console.log("[BUILD] 2026-08-24 23:30 fix-email-patient-id");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -375,7 +375,8 @@ export default function Page() {
       sendData.append("access_token", token); // 👈 動的トークン
       sendData.append("staff_name", currentStaff); // 👈 衛生士名
       sendData.append("clinic_name", clinicName);
-      sendData.append("patient_anon_id", "A101");
+      // 💡 生成時にSupabaseが発番した本物の管理IDを送る（固定値 "A101" は初期テストの残滓で、メール本文の患者IDが常にA101になる原因だった）
+      sendData.append("patient_anon_id", result?.patientAnonId || "");
       sendData.append("pdfFile", pdfBlob, "sheet.pdf");
 
       const res = await fetch("/api/print", {
@@ -1016,7 +1017,7 @@ export default function Page() {
                 {activeTab === "talk" && (
                   <div className="no-print bg-amber-50/80 p-5 rounded-xl border border-amber-200 w-full max-w-3xl">
                     <div className="bg-amber-100 text-amber-900 p-3 rounded-lg text-xs font-bold flex items-center gap-2 mb-4 border border-amber-300">
-                      <AlertTriangle size={16} /> 患者様には���せないでください（衛生士専用トークガイド））
+                      <AlertTriangle size={16} /> 患者様には見せないでください（衛生士専用トークガイド））
                     </div>
                     <div
                       className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"
