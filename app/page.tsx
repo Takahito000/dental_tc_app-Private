@@ -145,9 +145,18 @@ const cleanTableHtml = (html: string) => {
     `<table style="table-layout: fixed; width: 100%; border-collapse: collapse;" class="w-full border-2 border-slate-300 text-[12.5px] my-1">${colgroupHtml}`
   );
 
+  // 💡 モデルがデータ行（1列目の行見出しなど）にも <th> を使うと全セルが紺色化する事故への対策：
+  //    見出しは先頭の <tr> のみとし、2行目以降の <th> はすべて <td> に変換してからスタイルを適用する
+  //    （先読み (?=[\s>]) で <thead> 等の別タグを誤って書き換えないようにする）
+  const rowParts = cleaned.split(/(<\/tr>)/gi);
+  for (let i = 2; i < rowParts.length; i += 2) {
+    rowParts[i] = rowParts[i].replace(/<th(?=[\s>])/gi, "<td").replace(/<\th>/gi, "</td>");
+  }
+  cleaned = rowParts.join("");
+
   cleaned = cleaned
-    .replace(/<th/gi, '<th class="border border-slate-300 p-2 bg-slate-900 text-white text-left font-bold"')
-    .replace(/<td/gi, '<td class="border border-slate-300 p-2 text-slate-700 leading-normal font-normal"');
+    .replace(/<th(?=[\s>])/gi, '<th class="border border-slate-300 p-2 bg-slate-900 text-white text-left font-bold"')
+    .replace(/<td(?=[\s>])/gi, '<td class="border border-slate-300 p-2 text-slate-700 leading-normal font-normal"');
 
 
   return cleaned;
@@ -177,7 +186,7 @@ function classifyError(raw: string): ClassifiedError {
     return {
       kind: "timeout",
       kindLabel: "タイムアウト",
-      headline: "生成に時間がかか��ています",
+      headline: "生成に時間がかか�����います",
       guidance: "もう一度お試しください。",
       code,
     };
@@ -253,7 +262,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 22:30 cautious-single-page");
+    console.log("[BUILD] 2026-08-25 22:45 table-th-normalize");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -547,7 +556,7 @@ export default function Page() {
 
   const cleanClinicName = clinicName.replace(/様$/, "");
 
-  // 💡 カンペが新フォーマット（【キーワード】併記）かどうか。旧形式の生成結果では切替ボタン自体を出さない
+  // 💡 カンペが新フォーマット（【キーワード】併記）かどうか。旧形式の生���結果では切替ボタン自体を出さない
   const talkKeywordAvailable = result ? result.talkScript.includes("【キーワード】") : false;
 
   // 💡 生成結果の構造異常を検知（表示崩れの自救導線。再生成で治るケースをユーザーが判断できるようにする）
