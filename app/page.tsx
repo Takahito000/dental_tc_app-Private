@@ -130,7 +130,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 06:30 header-consolidation");
+    console.log("[BUILD] 2026-08-25 09:20 lock-generate-unregistered");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -231,21 +231,12 @@ export default function Page() {
     });
   };
 
-  // 💡 トークンが医院に紐づいて解決できているか（ヘッダーの「接続OK」ピルと同じ条件）
-  const isClinicConnected = Boolean(token && clinicName);
-
   const handleGenerate = async () => {
-    // 🚧 関門：トークン未登録・未設定のままAI生成（＝AI利用料の発生）できてしまう問題への対応。
-    //    接続OK以外ではAPIを呼ばず、理由を表示して終了する（それ以外の挙動には一切触れない）
-    if (!isClinicConnected) {
-      setError(
-        token
-          ? "トークン未登録のため生成できません。医院に発行された専用URL（?t=...）でアクセスし直すか、管理者に医院登録をご確認ください。"
-          : "医院トークンが未設定です。医院に発行された専用URL（?t=...）からアクセスしてください。"
-      );
+    // 💡 未登録トークン・医院未設定では生成を実行しない（ボタン非活性の保険として二重防御）
+    if (!(token && clinicName)) {
+      setError("医院の接続が確認できません（トークン未登録または未設定）。右上の接続状況を確認してください。");
       return;
     }
-
     setLoading(true);
     setError(null);
     setResult(null);
@@ -826,8 +817,8 @@ export default function Page() {
 
           <button
             onClick={handleGenerate}
-            disabled={loading || !isClinicConnected}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg transition disabled:opacity-50 text-base flex items-center justify-center gap-2 cursor-pointer mt-2"
+            disabled={loading || !(token && clinicName)}
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed text-base flex items-center justify-center gap-2 cursor-pointer mt-2"
           >
             {loading ? (
               <span className="flex items-center gap-2 animate-pulse">
@@ -839,13 +830,9 @@ export default function Page() {
               </>
             )}
           </button>
-
-          {/* 🚧 未接続時：無効化の理由を衛生士が迷わず理解できるようボタン直下に表示 */}
-          {!isClinicConnected && (
-            <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 leading-relaxed">
-              {token
-                ? "トークン未登録のため生成できません。医院に発行された専用URL（?t=...）でアクセスし直すか、管理者に医院登録をご確認ください。"
-                : "医院トークンが未設定です。医院に発行された専用URL（?t=...）からアクセスしてください。"}
+          {!(token && clinicName) && (
+            <p className="no-print mt-2 text-xs text-rose-600 font-bold text-center">
+              ⚠️ 医院の接続が確認できないため生成できません（右上の接続状況を確認してください）
             </p>
           )}
         </section>
