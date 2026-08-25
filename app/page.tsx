@@ -153,6 +153,57 @@ const cleanTableHtml = (html: string) => {
   return cleaned;
 };
 
+// 💡 エラーの日本語化分類（ユーザーには「見出し＋行動」、サポートには「スクショで読める診断行」を見せる）
+type ClassifiedError = {
+  kind: "congestion" | "timeout" | "config" | "network" | "other";
+  kindLabel: string;
+  headline: string;
+  guidance: string;
+  code: string;
+};
+
+function classifyError(raw: string): ClassifiedError {
+  const code = raw.match(/\b(\d{3})\b/)?.[1] || "-";
+  if (/503|UNAVAILABLE|high demand|overloaded/i.test(raw)) {
+    return {
+      kind: "congestion",
+      kindLabel: "サーバー混雑",
+      headline: "AIサーバーが混雑しています",
+      guidance: "数分おいてから、もう一度「生成」ボタンを押してください。",
+      code,
+    };
+  }
+  if (/504|timeout|timed out|deadline/i.test(raw)) {
+    return {
+      kind: "timeout",
+      kindLabel: "タイムアウト",
+      headline: "生成に時間がかかっています",
+      guidance: "もう一度お試しください。",
+      code,
+    };
+  }
+  if (/401|403|認証|API key|access_token/i.test(raw)) {
+    return {
+      kind: "config",
+      kindLabel: "接続設定",
+      headline: "接続設定に問題があります",
+      guidance: "サポートへご連絡ください（利用医院の設定を確認します）。",
+      code,
+    };
+  }
+  if (/通信|network|fetch/i.test(raw)) {
+    return {
+      kind: "network",
+      kindLabel: "通信",
+      headline: "通信エラーが発生しました",
+      guidance: "ネットワーク環境を確認のうえ、もう一度お試しください。",
+      code,
+    };
+  }
+  // 既に日本語で書かれた案内（トークン未登録等）はそのまま見せる
+  return { kind: "other", kindLabel: "その他", headline: raw, guidance: "", code };
+}
+
 export default function Page() {
   const [mounted, setMounted] = useState(false);
   
@@ -188,6 +239,12 @@ export default function Page() {
   // 💡 トークカンペの表示モード。チェアサイドで一瞥できる「要点」を初期値にし、学習・時間がある時は「全文」に切替
   const [talkView, setTalkView] = useState<"keyword" | "full">("keyword");
   const [error, setError] = useState<string | null>(null);
+  // 💡 エラー発生時刻（スクショ診断用に表示するため記録）
+  const [errorAt, setErrorAt] = useState<number | null>(null);
+  const showError = (raw: string | null) => {
+    setError(raw);
+    setErrorAt(raw ? Date.now() : null);
+  };
   const [sending, setSending] = useState(false);
   const [printingPdf, setPrintingPdf] = useState(false);
 
@@ -196,7 +253,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 14:55 print-table-scrollbar-rootfix");
+    console.log("[BUILD] 2026-08-25 16:45 friendly-error-and-regen-hint");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -312,11 +369,11 @@ export default function Page() {
   const handleGenerate = async () => {
     // 💡 未登録トークン・医院未設定では生成を実行しない（ボタン非活性の保険として二重防御）
     if (!(token && clinicName)) {
-      setError("医院の接続が確認できません（トークン未登録または未設定）。右上の接続状況を確認してください。");
+      showError("医院の接続が確認できません（トークン未登録または未設定）。右上の接続状況を確認してください。");
       return;
     }
     setLoading(true);
-    setError(null);
+    showError(null);
     setResult(null);
 
     const payload = {
@@ -351,10 +408,10 @@ export default function Page() {
         });
         setPatientAnonId(data.patientAnonId || "");
       } else {
-        setError("AI生成エラー: " + (data.error || "通信エラー"));
+        showError("AI生成エラー: " + (data.error || "通信エラー"));
       }
     } catch {
-      setError("通信エラーが発生しました。");
+      showError("通信エラーが発生しました。");
     } finally {
       setLoading(false);
     }
@@ -492,6 +549,15 @@ export default function Page() {
 
   // 💡 カンペが新フォーマット（【キーワード】併記）かどうか。旧形式の生成結果では切替ボタン自体を出さない
   const talkKeywordAvailable = result ? result.talkScript.includes("【キーワード】") : false;
+
+  // 💡 生成結果の構造異常を検知（表示崩れの自救導線。再生成で治るケースをユーザーが判断できるようにする）
+  const resultSuspicious = (() => {
+    if (!result) return false;
+    const talkBroken = !result.talkScript || !result.talkScript.includes("■");
+    const sheet = parsePatientSheet(result.patientSheet);
+    const tableMissing = !sheet.sections.some((s) => s.body.includes("<table"));
+    return talkBroken || tableMissing;
+  })();
 
   // 💡 A4から内容がはみ出した時だけ中身を自動縮小（高齢者向けの大きめ文字は維持し、はみ出し分だけ縮める）
   const fitContentToA4 = (el: HTMLDivElement | null) => {
@@ -921,15 +987,47 @@ export default function Page() {
               ⚠️ 医院の接続が確認できないため生成できません（右上の接続状況を確認してください）
             </p>
           )}
+          {/* 💡 表示崩れの自救導線：スマホではこの直下にレポートが来るためここに常設。構造異常を検知した時は強調表示に切替 */}
+          {resultSuspicious ? (
+            <p className="no-print mt-2 text-xs font-bold text-center text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
+              ⚠️ この結果は表示が崩れている可能性があります。「生成」をもう一度押すと改善します
+            </p>
+          ) : (
+            <p className="no-print mt-2 text-[11px] text-slate-400 text-center">
+              内容や表示が正しくない場合は、もう一度「生成」を押してください（同じ条件で生成し直されます）
+            </p>
+          )}
         </section>
 
         {/* 右カラム：プレビュー */}
         <section aria-label="プレビュー領域" className="print-area h-full flex flex-col">
-          {error && (
-            <div className="no-print mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold">
-              {error}
-            </div>
-          )}
+          {error && (() => {
+            const ce = classifyError(error);
+            // 分類不能（既に日本語化済みの案内）は従来表示のまま
+            if (ce.kind === "other") {
+              return (
+                <div className="no-print mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold">
+                  {ce.headline}
+                </div>
+              );
+            }
+            const at = errorAt
+              ? new Date(errorAt).toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+              : "";
+            return (
+              <div className="no-print mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-lg">
+                <p className="text-sm font-bold text-rose-700 flex items-center gap-1.5">
+                  <AlertTriangle size={15} /> {ce.headline}
+                </p>
+                <p className="text-xs text-rose-700 mt-1 leading-relaxed">
+                  {ce.guidance}繰り返し失敗する場合は、この画面のスクリーンショットをサポートへお送りください。
+                </p>
+                <p className="text-[11px] text-rose-400 mt-1.5 font-mono">
+                  コード: {ce.code} ／ 種別: {ce.kindLabel}{at ? ` ／ 発生: ${at}` : ""}
+                </p>
+              </div>
+            );
+          })()}
 
           {result ? (
             <div className="bg-white p-5 rounded-2xl shadow-md border border-slate-200 flex flex-col h-full">
