@@ -64,6 +64,54 @@ const renderInline = (text: string) =>
     .replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-900 bg-blue-100 px-1 rounded font-bold">$1</strong>')
     .replace(/\n/g, "<br/>");
 
+// 💡 トークカンペのインライン装飾（全文表示・フォールバック表示で共通利用）
+const renderTalkInline = (text: string) =>
+  text
+    .replace(/### (.*)/g, '<h3 class="font-bold text-amber-900 border-b border-amber-200 pb-1 mt-4 mb-2 text-sm">$1</h3>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="bg-amber-100 px-1 rounded">$1</strong>');
+
+// 💡 トークカンペ要点表示用パーサー（2026-08-25 表記フォーマット変更対応）
+// Dify 2号機の「■ ステップ名／【キーワード】／【心構え】／【全文】」形式を解析する。
+// 【キーワード】を1つも含まない旧形式の生成結果は null を返し、全文表示にフォールバックする。
+// 【キーワード】を持たないステップ（ステップ0の注意書き等）は raw を保持し、要点表示でも全文を見せる（安全警告を隠さない）。
+type TalkKeywordStep = {
+  heading: string;
+  keywords: string[];
+  kokorogamae: string | null;
+  raw: string[];
+};
+
+function parseTalkKeywords(raw: string): { preamble: string; steps: TalkKeywordStep[] } | null {
+  if (!raw.includes("【キーワード】")) return null;
+  const lines = raw.split("\n");
+  const steps: TalkKeywordStep[] = [];
+  const preambleLines: string[] = [];
+  let current: TalkKeywordStep | null = null;
+  for (const line of lines) {
+    const t = line.trim();
+    if (/^■\s*ステップ/.test(t)) {
+      if (current) steps.push(current);
+      current = { heading: t.replace(/^■\s*/, ""), keywords: [], kokorogamae: null, raw: [line] };
+    } else if (current) {
+      current.raw.push(line);
+      if (t.startsWith("【キーワード】")) {
+        current.keywords = t
+          .replace("【キーワード】", "")
+          .split("／")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      } else if (t.startsWith("【心構え】")) {
+        current.kokorogamae = t.replace("【心構え】", "").trim();
+      }
+      // 【全文】行とその本文は要点表示では使わない（raw には保持）
+    } else {
+      preambleLines.push(line);
+    }
+  }
+  if (current) steps.push(current);
+  return { preamble: preambleLines.join("\n").trim(), steps };
+}
+
 const TABLE_COL_WIDTHS = {
   col1: "18%",
   col2: "37%",
@@ -121,6 +169,8 @@ export default function Page() {
   // 💡 生成時に発番される管理ID（医院へ送信のメール本文で使用するため保持する）
   const [patientAnonId, setPatientAnonId] = useState("");
   const [activeTab, setActiveTab] = useState<"patient" | "talk">("patient");
+  // 💡 トークカンペの表示モード。チェアサイドで一瞥できる「要点」を初期値にし、学習・時間がある時は「全文」に切替
+  const [talkView, setTalkView] = useState<"keyword" | "full">("keyword");
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [printingPdf, setPrintingPdf] = useState(false);
@@ -130,7 +180,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 09:20 lock-generate-unregistered");
+    console.log("[BUILD] 2026-08-25 10:50 talkscript-keyword-toggle");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -407,6 +457,9 @@ export default function Page() {
 
   const cleanClinicName = clinicName.replace(/様$/, "");
 
+  // 💡 カンペが新フォーマット（【キーワード】併記）かどうか。旧形式の生成結果では切替ボタン自体を出さない
+  const talkKeywordAvailable = result ? result.talkScript.includes("【キーワード】") : false;
+
   // 💡 A4から内容がはみ出した時だけ中身を自動縮小（高齢者向けの大きめ文字は維持し、はみ出し分だけ縮める）
   const fitContentToA4 = (el: HTMLDivElement | null) => {
     if (!el) return;
@@ -532,7 +585,7 @@ export default function Page() {
               <p className="text-xs text-slate-500 hidden sm:block">Denpist AI｜AI自費義歯カウンセリング支援</p>
             </div>
           </div>
-          {/* 💡 医院名はこの接続状況ピルに集約（旧ヘッダーバッジ・フォーム見出しバッジの重複表示を廃止）。「衛生士モード」表記は他モードがある誤解を招くため廃止。担当衛生士名はシートの「担当」に印字されるためモバイルでも表示必須 */}
+          {/* 💡 医院名はこの接続状況ピルに集約（旧ヘッダーバッジ・フォーム見出しバッジ���重複表示を廃止）。「衛生士モード」表記は他モードがある誤解を招くため廃止。担当衛生士名はシートの「担当」に印字されるためモバイルでも表示必須 */}
           <div className="flex items-center gap-2">
             <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 border shadow-xs ${
               token && clinicName
@@ -889,6 +942,24 @@ export default function Page() {
                     </button>
                   </div>
                 )}
+
+                {/* 💡 カンペ表示切替（チェアサイド=要点／学習=全文）。患者タブの印刷ボタンと対称の位置。新フォーマットの生成結果でのみ表示 */}
+                {activeTab === "talk" && talkKeywordAvailable && (
+                  <div className="flex gap-1.5 items-center">
+                    <button
+                      onClick={() => setTalkView("keyword")}
+                      className={`py-2 px-3 min-h-[44px] rounded-lg border text-xs font-bold transition ${talkView === "keyword" ? "bg-amber-500 text-white border-amber-500 shadow-sm" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}
+                    >
+                      要点
+                    </button>
+                    <button
+                      onClick={() => setTalkView("full")}
+                      className={`py-2 px-4 min-h-[44px] rounded-lg border text-xs font-bold transition ${talkView === "full" ? "bg-amber-500 text-white border-amber-500 shadow-sm" : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"}`}
+                    >
+                      全文
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div ref={previewAreaRef} className="flex-1 overflow-auto bg-slate-200 p-4 rounded-xl border border-slate-300 flex flex-col items-center gap-6">
@@ -1011,22 +1082,58 @@ export default function Page() {
                   );
                 })()}
 
-                {/* トークカンペ */}
-                {activeTab === "talk" && (
-                  <div className="no-print bg-amber-50/80 p-5 rounded-xl border border-amber-200 w-full max-w-3xl">
-                    <div className="bg-amber-100 text-amber-900 p-3 rounded-lg text-xs font-bold flex items-center gap-2 mb-4 border border-amber-300">
-                      <AlertTriangle size={16} /> 患者様には見せないでください（衛生士専用トークガイド））
+                {/* トークカンペ（要点⇄全文 切替対応） */}
+                {activeTab === "talk" && (() => {
+                  // 新フォーマット（【キーワード】あり）かつ要点表示の時だけ要点ビュー。それ以外は従来の全文表示にフォールバック
+                  const kwData = talkView === "keyword" ? parseTalkKeywords(result.talkScript) : null;
+                  return (
+                    <div className="no-print bg-amber-50/80 p-5 rounded-xl border border-amber-200 w-full max-w-3xl">
+                      <div className="bg-amber-100 text-amber-900 p-3 rounded-lg text-xs font-bold flex items-center gap-2 mb-4 border border-amber-300">
+                        <AlertTriangle size={16} /> 患者様には見せないでください（衛生士専用トークガイド））
+                      </div>
+                      {kwData ? (
+                        <div className="space-y-3">
+                          {kwData.preamble && (
+                            <div
+                              className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap"
+                              dangerouslySetInnerHTML={{ __html: renderTalkInline(kwData.preamble) }}
+                            />
+                          )}
+                          {kwData.steps.map((step, i) => (
+                            <div key={i} className="bg-white rounded-lg border border-amber-200 p-3 shadow-xs">
+                              <h3 className="font-bold text-amber-900 text-sm mb-2">{step.heading}</h3>
+                              {step.keywords.length > 0 ? (
+                                <ul className="space-y-1.5">
+                                  {step.keywords.map((kw, j) => (
+                                    <li key={j} className="text-sm font-bold text-slate-800 flex items-start gap-1.5 leading-snug">
+                                      <span className="text-amber-500 shrink-0">◆</span>
+                                      <span>{kw}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <div
+                                  className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"
+                                  dangerouslySetInnerHTML={{ __html: renderTalkInline(step.raw.slice(1).join("\n")) }}
+                                />
+                              )}
+                              {step.kokorogamae && (
+                                <div className="mt-2.5 text-xs bg-blue-50 border border-blue-200 text-blue-900 rounded-lg p-2.5 leading-relaxed font-medium">
+                                  💡 {step.kokorogamae}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div
+                          className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"
+                          dangerouslySetInnerHTML={{ __html: renderTalkInline(result.talkScript) }}
+                        />
+                      )}
                     </div>
-                    <div
-                      className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"
-                      dangerouslySetInnerHTML={{
-                        __html: result.talkScript
-                          .replace(/### (.*)/g, '<h3 class="font-bold text-amber-900 border-b border-amber-200 pb-1 mt-4 mb-2 text-sm">$1</h3>')
-                          .replace(/\*\*(.*?)\*\*/g, '<strong class="bg-amber-100 px-1 rounded">$1</strong>'),
-                      }}
-                    />
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
           ) : (
