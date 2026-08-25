@@ -73,7 +73,7 @@ const renderTalkInline = (text: string) =>
 // 💡 トークカンペ要点表示用パーサー（2026-08-25 表記フォーマット変更対応）
 // Dify 2号機の「■ ステップ名／【キーワード】／【心構え】／【全文】」形式を解析する。
 // 【キーワード】を1つも含まない旧形式の生成結果は null を返し、全文表示にフォールバックする。
-// 【キーワード】を持たないステップ��ステップ0の注意書き等）は raw を保持し、要点表示でも全文を見せる（安全警告を隠さない）。
+// 【キーワード】を持たないステップ����ステップ0の注意書き等）は raw を保持し、要点表示でも全文を見せる（安全警告を隠さない）。
 type TalkKeywordStep = {
   heading: string;
   keywords: string[];
@@ -253,7 +253,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 22:20 cautious-sheet-render");
+    console.log("[BUILD] 2026-08-25 22:30 cautious-single-page");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -1143,10 +1143,13 @@ export default function Page() {
                     </div>
                   );
 
+                  // 💡 比較表がないシート（慎重モード）は内容が1ページに収まるため単ページで描画する（2ページ目が余白だらけになるのを防ぐ）
+                  const singlePageSheet = !tableSection;
+
                   return (
                     <>
                       {/* PAGE 1 */}
-                      <A4PageWrapper>
+                      <A4PageWrapper isLast={singlePageSheet}>
                         <Header />
                         {intro && (
                           <div className="flex items-start gap-2 mb-2">
@@ -1185,11 +1188,23 @@ export default function Page() {
                             />
                           </div>
                         )}
+                        {singlePageSheet && prosCons && (
+                          <div className="rounded-xl border border-slate-200 bg-white p-3">
+                            <div className="flex items-center gap-1 border-l-4 border-blue-600 pl-1.5 text-[15px] font-bold text-slate-900 mb-1">
+                              <CheckCircle2 size={14} className="text-blue-600" />
+                              {prosCons.heading}
+                            </div>
+                            <div
+                              className="text-[13.5px] leading-relaxed text-slate-800"
+                              dangerouslySetInnerHTML={{ __html: renderInline(prosCons.body) }}
+                            />
+                          </div>
+                        )}
                         <Footer />
                       </A4PageWrapper>
 
                       {/* PAGE 2 */}
-                      {(prosCons || costSection) && (
+                      {!singlePageSheet && (prosCons || costSection) && (
                         <A4PageWrapper isLast>
                           <Header />
                           <div className="grid grid-cols-1 gap-2.5">
