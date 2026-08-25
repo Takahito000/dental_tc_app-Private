@@ -79,6 +79,8 @@ type TalkKeywordStep = {
   keywords: string[];
   kokorogamae: string | null;
   raw: string[];
+  // 💡 全文ビュー用：見出し・【キーワード】・【心構え】行を除き、【全文】マーカーを剥がした本文
+  fullText: string;
 };
 
 function parseTalkKeywords(raw: string): { preamble: string; steps: TalkKeywordStep[] } | null {
@@ -87,11 +89,23 @@ function parseTalkKeywords(raw: string): { preamble: string; steps: TalkKeywordS
   const steps: TalkKeywordStep[] = [];
   const preambleLines: string[] = [];
   let current: TalkKeywordStep | null = null;
+  const finishStep = (s: TalkKeywordStep): TalkKeywordStep => ({
+    ...s,
+    fullText: s.raw
+      .slice(1)
+      .filter((l) => {
+        const lt = l.trim();
+        return !lt.startsWith("【キーワード】") && !lt.startsWith("【心構え】");
+      })
+      .join("\n")
+      .replace("【全文】", "")
+      .trim(),
+  });
   for (const line of lines) {
     const t = line.trim();
     if (/^■\s*ステップ/.test(t)) {
-      if (current) steps.push(current);
-      current = { heading: t.replace(/^■\s*/, ""), keywords: [], kokorogamae: null, raw: [line] };
+      if (current) steps.push(finishStep(current));
+      current = { heading: t.replace(/^■\s*/, ""), keywords: [], kokorogamae: null, raw: [line], fullText: "" };
     } else if (current) {
       current.raw.push(line);
       if (t.startsWith("【キーワード】")) {
@@ -103,12 +117,12 @@ function parseTalkKeywords(raw: string): { preamble: string; steps: TalkKeywordS
       } else if (t.startsWith("【心構え】")) {
         current.kokorogamae = t.replace("【心構え】", "").trim();
       }
-      // 【全文】行とその本文は要点表示では使わない（raw には保持）
+      // 【全文】行とその本文は要点表示では使わず、raw から fullText を構築する
     } else {
       preambleLines.push(line);
     }
   }
-  if (current) steps.push(current);
+  if (current) steps.push(finishStep(current));
   return { preamble: preambleLines.join("\n").trim(), steps };
 }
 
@@ -180,7 +194,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 10:50 talkscript-keyword-toggle");
+    console.log("[BUILD] 2026-08-25 11:55 talkscript-fullview-format");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -1084,8 +1098,9 @@ export default function Page() {
 
                 {/* トークカンペ（要点⇄全文 切替対応） */}
                 {activeTab === "talk" && (() => {
-                  // 新フォーマット（【キーワード】あり）かつ要点表示の時だけ要点ビュー。それ以外は従来の全文表示にフォールバック
-                  const kwData = talkView === "keyword" ? parseTalkKeywords(result.talkScript) : null;
+                  // 新フォーマット（【キーワード】あり）は要点・全文ともにカード表示。旧形式は従来のプレーン表示にフォールバック
+                  const parsed = parseTalkKeywords(result.talkScript);
+                  const kwData = talkView === "keyword" ? parsed : null;
                   return (
                     <div className="no-print bg-amber-50/80 p-5 rounded-xl border border-amber-200 w-full max-w-3xl">
                       <div className="bg-amber-100 text-amber-900 p-3 rounded-lg text-xs font-bold flex items-center gap-2 mb-4 border border-amber-300">
@@ -1114,13 +1129,44 @@ export default function Page() {
                               ) : (
                                 <div
                                   className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"
-                                  dangerouslySetInnerHTML={{ __html: renderTalkInline(step.raw.slice(1).join("\n")) }}
+                                  dangerouslySetInnerHTML={{ __html: renderTalkInline(step.fullText) }}
                                 />
                               )}
                               {step.kokorogamae && (
                                 <div className="mt-2.5 text-xs bg-blue-50 border border-blue-200 text-blue-900 rounded-lg p-2.5 leading-relaxed font-medium">
                                   💡 {step.kokorogamae}
                                 </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : parsed ? (
+                        <div className="space-y-3">
+                          {parsed.preamble && (
+                            <div
+                              className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap"
+                              dangerouslySetInnerHTML={{ __html: renderTalkInline(parsed.preamble) }}
+                            />
+                          )}
+                          {parsed.steps.map((step, i) => (
+                            <div key={i} className="bg-white rounded-lg border border-amber-200 p-3.5 shadow-xs">
+                              <h3 className="font-bold text-amber-900 text-sm border-b border-amber-200 pb-1.5 mb-2">{step.heading}</h3>
+                              {step.keywords.length > 0 && (
+                                <div className="text-[11px] text-slate-500 mb-2">
+                                  <span className="font-bold text-amber-700">キーワード：</span>
+                                  {step.keywords.join("／")}
+                                </div>
+                              )}
+                              {step.kokorogamae && (
+                                <div className="mb-2.5 text-xs bg-blue-50 border border-blue-200 text-blue-900 rounded-lg p-2.5 leading-relaxed font-medium">
+                                  💡 {step.kokorogamae}
+                                </div>
+                              )}
+                              {step.fullText && (
+                                <div
+                                  className="text-[13px] leading-loose text-slate-700 whitespace-pre-wrap"
+                                  dangerouslySetInnerHTML={{ __html: renderTalkInline(step.fullText) }}
+                                />
                               )}
                             </div>
                           ))}
