@@ -196,7 +196,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 13:35 seminar-demo-mode");
+    console.log("[BUILD] 2026-08-25 14:30 print-table-overflow-fix");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -584,11 +584,11 @@ export default function Page() {
           .sheet-page-portrait {
             transform: none !important;
             width: 210mm !important;
-            height: 297mm !important;
-            max-height: 297mm !important;
+            height: auto !important;
+            min-height: 297mm !important;
             padding: 12mm !important;
             box-sizing: border-box !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             border: none !important;
             box-shadow: none !important;
             margin: 0 auto !important;
@@ -1076,7 +1076,7 @@ export default function Page() {
                               {tableSection.heading}
                             </div>
                             <div
-                              className="overflow-x-auto"
+                              className="overflow-x-auto print:overflow-visible"
                               dangerouslySetInnerHTML={{ __html: cleanTableHtml(tableSection.body) }}
                             />
                           </div>
