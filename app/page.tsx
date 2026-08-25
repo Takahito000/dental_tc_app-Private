@@ -253,7 +253,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 22:05 cautious-mode-suspicion-fix");
+    console.log("[BUILD] 2026-08-25 22:20 cautious-sheet-render");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -1105,9 +1105,11 @@ export default function Page() {
                 {activeTab === "patient" && (() => {
                   const sheet = parsePatientSheet(result.patientSheet);
                   const intro = sheet.sections.find((s) => s.heading.includes("悩み"));
-                  const recommend = sheet.sections.find((s) => s.heading.includes("おすすめ"));
+                  // 💡 慎重モードでは「知っておいていただきたいこと」がこの枠に入る（比較表・おすすめを出さない代わりの本文セクション）
+                  const recommend = sheet.sections.find((s) => s.heading.includes("おすすめ") || s.heading.includes("知っておいて"));
                   const tableSection = sheet.sections.find((s) => s.body.includes("<table"));
-                  const prosCons = sheet.sections.find((s) => s.heading.includes("良い点") || s.heading.includes("注意点"));
+                  // 💡 慎重モードでは「次のステップについて」がこの枠に入る（2ページ目の描画条件を満たす役割も兼ねる）
+                  const prosCons = sheet.sections.find((s) => s.heading.includes("良い点") || s.heading.includes("注意点") || s.heading.includes("次のステップ"));
                   const costSection = sheet.sections.find((s) => s.heading.includes("費用"));
 
                   const Header = () => (
