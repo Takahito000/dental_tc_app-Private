@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from("clinics")
-      .select("id, name, print_email")
+      .select("id, name, print_email, is_demo")
       .eq("access_token", token)
       .single();
 
@@ -59,6 +59,8 @@ export async function GET(req: Request) {
       success: true,
       name: data.name,
       print_email: data.print_email,
+      // 💡 セミナーデモ用トークンの識別フラグ（フロントはこれでメール送信UIを隠す）
+      is_demo: data.is_demo === true,
     });
   } catch (err: any) {
     console.error("Clinic API Error:", err);
