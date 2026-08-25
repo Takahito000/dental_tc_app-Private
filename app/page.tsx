@@ -196,7 +196,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 14:30 print-table-overflow-fix");
+    console.log("[BUILD] 2026-08-25 14:55 print-table-scrollbar-rootfix");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -1075,8 +1075,10 @@ export default function Page() {
                               <Sparkles size={14} className="text-amber-500" />
                               {tableSection.heading}
                             </div>
+                            {/* 💡 overflow-x-auto を除去：PDF生成（html-to-image）は @media print を読まず、
+                                overflow付き要素がスクロールコンテナ化してスクロールバーが画像に焼き付く上、
+                                flex内で高さが縮み内容が隠れる（自動縮小の計測も狂う）ため。table-layout:fixed のため除去しても横にはみ出さない */}
                             <div
-                              className="overflow-x-auto print:overflow-visible"
                               dangerouslySetInnerHTML={{ __html: cleanTableHtml(tableSection.body) }}
                             />
                           </div>
