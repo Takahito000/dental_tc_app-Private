@@ -73,7 +73,7 @@ const renderTalkInline = (text: string) =>
 // 💡 トークカンペ要点表示用パーサー（2026-08-25 表記フォーマット変更対応）
 // Dify 2号機の「■ ステップ名／【キーワード】／【心構え】／【全文】」形式を解析する。
 // 【キーワード】を1つも含まない旧形式の生成結果は null を返し、全文表示にフォールバックする。
-// 【キーワード】を持たないステップ（ステップ0の注意書き等）は raw を保持し、要点表示でも全文を見せる（安全警告を隠さない）。
+// 【キーワード】を持たないステップ��ステップ0の注意書き等）は raw を保持し、要点表示でも全文を見せる（安全警告を隠さない）。
 type TalkKeywordStep = {
   heading: string;
   keywords: string[];
@@ -177,7 +177,7 @@ function classifyError(raw: string): ClassifiedError {
     return {
       kind: "timeout",
       kindLabel: "タイムアウト",
-      headline: "生成に時間がかかっています",
+      headline: "生成に時間がかか��ています",
       guidance: "もう一度お試しください。",
       code,
     };
@@ -187,7 +187,7 @@ function classifyError(raw: string): ClassifiedError {
       kind: "config",
       kindLabel: "接続設定",
       headline: "接続設定に問題があります",
-      guidance: "サポートへご連絡ください（利用医院の設定を確認します）。",
+      guidance: "サポートへご連絡ください（利用���院の設定を確認します）。",
       code,
     };
   }
@@ -253,7 +253,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 16:45 friendly-error-and-regen-hint");
+    console.log("[BUILD] 2026-08-25 22:05 cautious-mode-suspicion-fix");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -554,8 +554,10 @@ export default function Page() {
   const resultSuspicious = (() => {
     if (!result) return false;
     const talkBroken = !result.talkScript || !result.talkScript.includes("■");
+    // 💡 慎重モード（要注意ワードが選択されている）では比較表を出さないのが正しい動作のため、表の欠落は異常とみなさない
+    const cautiousInput = formData.red_flag_words.some((w: string) => w !== "特になし");
     const sheet = parsePatientSheet(result.patientSheet);
-    const tableMissing = !sheet.sections.some((s) => s.body.includes("<table"));
+    const tableMissing = !cautiousInput && !sheet.sections.some((s) => s.body.includes("<table"));
     return talkBroken || tableMissing;
   })();
 
