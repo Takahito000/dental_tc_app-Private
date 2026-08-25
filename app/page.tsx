@@ -130,7 +130,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-24 23:45 fix-anon-id-state");
+    console.log("[BUILD] 2026-08-25 06:30 header-consolidation");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -517,25 +517,43 @@ export default function Page() {
       ` }} />
 
       <header className="no-print bg-white border-b border-slate-200 text-slate-900 py-3.5 px-6 shadow-sm">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-y-2">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 border border-blue-600 shadow-sm">
               <Stethoscope className="h-5 w-5 text-white" />
             </div>
             <div>
               <h1 className="text-base font-bold tracking-wide">デンピストAI</h1>
-              <p className="text-xs text-slate-500">Denpist AI｜AI自費義歯カウンセリング支援</p>
+              <p className="text-xs text-slate-500 hidden sm:block">Denpist AI｜AI自費義歯カウンセリング支援</p>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-4">
-            <div className="flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 border border-slate-200">
-              <Building2 className="h-4 w-4 text-blue-600" />
-              <span className="text-xs font-bold text-slate-900">{clinicName || "CS.lab"}</span>
+          {/* 💡 医院名はこの接続状況ピルに集約（旧ヘッダーバッジ・フォーム見出しバッジの重複表示を廃止）。「衛生士モード」表記は他モードがある誤解を招くため廃止。担当衛生士名はシートの「担当」に印字されるためモバイルでも表示必須 */}
+          <div className="flex items-center gap-2">
+            <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 border shadow-xs ${
+              token && clinicName
+                ? "bg-blue-50 border-blue-200"
+                : "bg-rose-50 border-rose-300"
+            }`}>
+              <Building2 className={`h-4 w-4 ${token && clinicName ? "text-blue-600" : "text-rose-600"}`} />
+              <span className={`text-xs font-bold ${token && clinicName ? "text-blue-900" : "text-rose-700"}`}>
+                {token
+                  ? clinicName
+                    ? `接続OK: ${clinicName}`
+                    : "トークン未登録"
+                  : "医院未設定"}
+              </span>
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 border border-blue-200">
-              <Activity className="h-3.5 w-3.5 text-blue-600" />
-              <span className="text-xs font-medium text-blue-700">衛生士モード</span>
-            </div>
+            <input
+              type="text"
+              value={staffName}
+              onChange={(e) => {
+                setStaffName(e.target.value);
+                localStorage.setItem("staff_name", e.target.value);
+              }}
+              placeholder="担当衛生士名"
+              title="シートの「担当」に印字されます"
+              className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 w-24 sm:w-32 focus:outline-none focus:border-blue-500 shadow-xs"
+            />
           </div>
         </div>
       </header>
@@ -549,36 +567,6 @@ export default function Page() {
         </div>
       )}
 
-      {/* 🏥 接続状況＆担当衛生士名入力バー（モバイル・PC共通） */}
-      <div className="no-print max-w-[1600px] mx-auto px-4 md:px-6 pt-4">
-        <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl flex flex-wrap justify-between items-center gap-3 shadow-xs">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-blue-600" />
-            <span className="text-xs text-slate-500">接続状況:</span>
-            <span className={`text-xs font-bold ${token && clinicName ? "text-blue-900" : "text-rose-600"}`}>
-              {token
-                ? clinicName
-                  ? `接続OK: ${clinicName}`
-                  : `未登録のトークンです（${token}）— Supabaseのclinicsに登録してください`
-                : "医院未設定（?t=トークン付きURLからアクセスしてください）"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-600 font-bold">担当衛生士名:</label>
-            <input
-              type="text"
-              value={staffName}
-              onChange={(e) => {
-                setStaffName(e.target.value);
-                localStorage.setItem("staff_name", e.target.value);
-              }}
-              placeholder="お名前を入力"
-              className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 w-36 focus:outline-none focus:border-blue-500 shadow-xs"
-            />
-          </div>
-        </div>
-      </div>
-
       <div className="app-layout mx-auto grid max-w-[1600px] grid-cols-1 gap-6 p-4 md:p-6 lg:grid-cols-[400px_1fr]">
         <section className="no-print space-y-3 h-fit">
           <div className="flex justify-between items-center bg-white rounded-2xl shadow-md border border-slate-200 px-5 py-4">
@@ -586,9 +574,6 @@ export default function Page() {
               <ShieldCheck className="text-blue-600" size={18} />
               患者条件の入力
             </h2>
-            <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2.5 py-1 rounded-md border border-slate-200">
-              {cleanClinicName}
-            </span>
           </div>
 
           <div className="space-y-3 text-xs">
