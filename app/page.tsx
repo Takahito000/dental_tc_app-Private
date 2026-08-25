@@ -231,7 +231,21 @@ export default function Page() {
     });
   };
 
+  // 💡 トークンが医院に紐づいて解決できているか（ヘッダーの「接続OK」ピルと同じ条件）
+  const isClinicConnected = Boolean(token && clinicName);
+
   const handleGenerate = async () => {
+    // 🚧 関門：トークン未登録・未設定のままAI生成（＝AI利用料の発生）できてしまう問題への対応。
+    //    接続OK以外ではAPIを呼ばず、理由を表示して終了する（それ以外の挙動には一切触れない）
+    if (!isClinicConnected) {
+      setError(
+        token
+          ? "トークン未登録のため生成できません。医院に発行された専用URL（?t=...）でアクセスし直すか、管理者に医院登録をご確認ください。"
+          : "医院トークンが未設定です。医院に発行された専用URL（?t=...）からアクセスしてください。"
+      );
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
@@ -378,7 +392,7 @@ export default function Page() {
       sendData.append("access_token", token); // 👈 動的トークン
       sendData.append("staff_name", currentStaff); // 👈 衛生士名
       sendData.append("clinic_name", clinicName);
-      // 💡 生成時にSupabaseが発番した本物の管理IDを送る（固定値 "A101" は初期テストの残滓で、メール本文の患者IDが常にA101になる原因だった）
+      // 💡 生成時���Supabaseが発番した本物の管理IDを送る（固定値 "A101" は初期テストの残滓で、メール本文の患者IDが常にA101になる原因だった）
       sendData.append("patient_anon_id", patientAnonId || "");
       sendData.append("pdfFile", pdfBlob, "sheet.pdf");
 
@@ -812,7 +826,7 @@ export default function Page() {
 
           <button
             onClick={handleGenerate}
-            disabled={loading}
+            disabled={loading || !isClinicConnected}
             className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg transition disabled:opacity-50 text-base flex items-center justify-center gap-2 cursor-pointer mt-2"
           >
             {loading ? (
@@ -825,6 +839,15 @@ export default function Page() {
               </>
             )}
           </button>
+
+          {/* 🚧 未接続時：無効化の理由を衛生士が迷わず理解できるようボタン直下に表示 */}
+          {!isClinicConnected && (
+            <p className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 leading-relaxed">
+              {token
+                ? "トークン未登録のため生成できません。医院に発行された専用URL（?t=...）でアクセスし直すか、管理者に医院登録をご確認ください。"
+                : "医院トークンが未設定です。医院に発行された専用URL（?t=...）からアクセスしてください。"}
+            </p>
+          )}
         </section>
 
         {/* 右カラム：プレビュー */}
