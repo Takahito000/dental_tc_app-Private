@@ -159,6 +159,8 @@ export default function Page() {
   // 💡 トークン・医院情報・衛生士名の管理
   const [token, setToken] = useState("");
   const [clinicName, setClinicName] = useState("");
+  // 💡 セミナーデモ用トークンかどうか（true の間はメール送信を無効化する）
+  const [isDemo, setIsDemo] = useState(false);
   const [staffName, setStaffName] = useState("");
   const [isStandalone, setIsStandalone] = useState(true); // PWA判定（初期true=バナー非表示。マウント後に実判定）
 
@@ -194,7 +196,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-25 11:55 talkscript-fullview-format");
+    console.log("[BUILD] 2026-08-25 13:35 seminar-demo-mode");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -210,6 +212,8 @@ export default function Page() {
       //    内部表記を絶対に出さないため、解決できた場合のみ state に正式名を入れる）
       const cachedName = localStorage.getItem("clinic_name") || "";
       if (cachedName) setClinicName(cachedName);
+      // デモフラグもキャッシュから即時復元（フェッチ完了前の一瞬の誤表示を防ぐ）
+      if (localStorage.getItem("clinic_is_demo") === "1") setIsDemo(true);
 
       fetch(`/api/clinic?t=${encodeURIComponent(activeToken)}`)
         .then((r) => r.json())
@@ -217,15 +221,25 @@ export default function Page() {
           if (d.success && d.name) {
             setClinicName(d.name);
             localStorage.setItem("clinic_name", d.name);
+            const demo = d.is_demo === true;
+            setIsDemo(demo);
+            if (demo) localStorage.setItem("clinic_is_demo", "1");
+            else localStorage.removeItem("clinic_is_demo");
           } else {
             // 未登録トークン：シートには医院名を出さない（画面の接続状況バーで警告表示）
             setClinicName("");
             localStorage.removeItem("clinic_name");
+            setIsDemo(false);
+            localStorage.removeItem("clinic_is_demo");
           }
         })
-        .catch(() => setClinicName(""));
+        .catch(() => {
+          setClinicName("");
+          setIsDemo(false);
+        });
     } else {
       setClinicName(""); // トークンなし：シートには医院名を出さない
+      setIsDemo(false);
     }
 
     // 2. 担当衛生士名を localStorage から復元
@@ -430,6 +444,11 @@ export default function Page() {
       alert("医院トークンが未設定です。?t=トークン 付きURLからアクセスしてください。");
       return;
     }
+    // 💡 デモトークンからのメール送信は拒否（ボタン非表示の保険として二重防御）
+    if (isDemo) {
+      alert("デモ版ではメール送信はご利用いただけません。");
+      return;
+    }
 
     setSending(true);
     try {
@@ -610,7 +629,7 @@ export default function Page() {
               <span className={`text-xs font-bold ${token && clinicName ? "text-blue-900" : "text-rose-700"}`}>
                 {token
                   ? clinicName
-                    ? `接続OK: ${clinicName}`
+                    ? `接続OK: ${clinicName}${isDemo ? "（デモ）" : ""}`
                     : "トークン未登録"
                   : "医院未設定"}
               </span>
@@ -947,13 +966,19 @@ export default function Page() {
                     >
                       <Printer size={16} /> <span className="hidden sm:inline">{printingPdf ? "PDF生成中..." : "A4印刷（PDFで開く）"}</span>
                     </button>
-                    <button
-                      onClick={handleSendPrint}
-                      disabled={sending}
-                      className="py-2 px-4 min-h-[44px] justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
-                    >
-                      <Send size={16} /> <span className="hidden sm:inline">{sending ? "送信中..." : "印刷（医院へ送信）"}</span>
-                    </button>
+                    {isDemo ? (
+                      <span className="py-2 px-3 min-h-[44px] flex items-center text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-lg">
+                        デモ版：メール送信は利用できません
+                      </span>
+                    ) : (
+                      <button
+                        onClick={handleSendPrint}
+                        disabled={sending}
+                        className="py-2 px-4 min-h-[44px] justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
+                      >
+                        <Send size={16} /> <span className="hidden sm:inline">{sending ? "送信中..." : "印刷（医院へ送信）"}</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
