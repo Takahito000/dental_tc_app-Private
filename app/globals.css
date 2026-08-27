@@ -1,1 +1,73 @@
 @import "tailwindcss";
+
+@theme {
+  /* デンピストAI デザイントークン（2026-08-27 デザイン刷新・案A） */
+  --color-ink: #232a33; /* 本文インク */
+  --color-ink-soft: #5b6570; /* 補助テキスト */
+  --color-line: #e4e1d8; /* 薄罫線 */
+  --color-paper: #fdfcf9; /* シート紙色 */
+  --color-accent: #1e4d5c; /* 基調アクセント（深い青緑） */
+  --color-gold: #b08d4f; /* 控えめゴールド（おすすめ・費用） */
+  --color-tint: #f5f3ec; /* おすすめブロックの淡い面 */
+  --color-rectint: #faf7f0; /* 比較表 第一候補列の淡い面 */
+}
+
+/* ============================================================
+   比較表（Dify生成HTMLに適用。デザイン刷新 案A：ボーダーレス型）
+   page.tsx の cleanTableHtml が table に class="cmp-table" を付与する
+   ============================================================ */
+.cmp-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--color-ink);
+}
+/* ヘッダー行（先頭trの th）: 背景なし・太字・下に主罫線（紺ベタ塗りは廃止） */
+.cmp-table tr:first-child th {
+  font-weight: 700;
+  text-align: left;
+  vertical-align: bottom;
+  padding: 0 8px 7px;
+  border-bottom: 1.5px solid var(--color-ink);
+  color: var(--color-ink);
+  background: transparent;
+}
+/* データ行: 縦罫線なし・横は極薄の仕切りのみ */
+.cmp-table td {
+  vertical-align: top;
+  text-align: left;
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink);
+}
+/* 最終行の下に主罫線（天地罫線で表を閉じる） */
+.cmp-table tr:last-child td {
+  border-bottom: 1.5px solid var(--color-ink);
+}
+/* 1列目（行見出し）は太字 */
+.cmp-table tr > td:first-child {
+  font-weight: 700;
+}
+/* 3列目（第一候補列）だけ淡い紙色で包む */
+.cmp-table tr > *:nth-child(3) {
+  background: var(--color-rectint);
+}
+/* 「第一候補」バッジ（cleanTableHtml が span.badge-rec に包む） */
+.badge-rec {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--color-gold);
+  border: 1px solid var(--color-gold);
+  background: #fff;
+  padding: 1px 8px;
+  border-radius: 999px;
+  margin-bottom: 4px;
+}
+/* 明朝体（シートのタイトル・見出し用。layout.tsx の next/font 変数を参照） */
+.font-serif-jp {
+  font-family: var(--font-serif-jp), "Hiragino Mincho ProN", "Yu Mincho", serif;
+}
