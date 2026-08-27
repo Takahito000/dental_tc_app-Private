@@ -802,11 +802,12 @@ export default function Page() {
       <header className="no-print bg-paper border-b-[1.5px] border-b-ink text-ink py-3.5 px-6">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-y-2">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent">
-              <span className="font-serif-jp text-white text-lg font-bold leading-none">
-                歯
-              </span>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand-icon.png"
+              alt="デンピストAI"
+              className="h-9 w-9 rounded-lg"
+            />
             <div>
               <h1 className="font-serif-jp text-base font-bold tracking-wider">
                 デンピストAI
