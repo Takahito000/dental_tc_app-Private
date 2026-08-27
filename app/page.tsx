@@ -341,17 +341,24 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-27 design-refresh-A");
+    console.log("[BUILD] 2026-08-27 pwa-token-cookie");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
     const urlToken = urlParams.get("t");
     const savedToken = localStorage.getItem("clinic_access_token");
+    // 💡 iOSのホーム画面追加（PWA）はSafariとlocalStorageを共有しないため、Cookie経由でもトークンを引き継ぐ
+    const cookieToken =
+      document.cookie.match(/(?:^|;\s*)clinic_access_token=([^;]*)/)?.[1] || "";
 
-    const activeToken = urlToken || savedToken || "";
+    const activeToken =
+      urlToken || savedToken || decodeURIComponent(cookieToken) || "";
     if (activeToken) {
       setToken(activeToken);
       localStorage.setItem("clinic_access_token", activeToken);
+      localStorage.setItem("clinic_access_token", activeToken);
+      // 💡 PWA引き継ぎ用Cookie（1年有効。Safariで?t=付きURLを一度開けばPWA側でも認識される）
+      document.cookie = `clinic_access_token=${encodeURIComponent(activeToken)}; max-age=31536000; path=/; SameSite=Lax; Secure`;
 
       // 💡 トークンから正式な医院名を引く（患者向けシートに「接続中 (token)」等の
       //    内部表記を絶対に出さないため、解決できた場合のみ state に正式名を入れる）
