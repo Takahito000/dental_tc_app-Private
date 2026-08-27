@@ -7,7 +7,7 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "AI自費義歯カウンセリング支援",
-    short_name: "TCシート",
+    short_name: "デンピストAI",
     description: "歯科衛生士のためのAIカウンセリングシート生成ツール",
     start_url: "/",
     display: "standalone",
