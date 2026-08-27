@@ -43,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body
-        className={`${notoSansJP.className} ${notoSerifJP.variable} min-h-screen bg-slate-100 antialiased`}
+        className={`${notoSansJP.className} ${notoSerifJP.variable} min-h-screen bg-bg antialiased`}
         suppressHydrationWarning
       >
         {children}

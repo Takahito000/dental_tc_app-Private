@@ -2,14 +2,12 @@
 
 import { useState, useEffect, useRef } from "react";
 import {
-  Stethoscope,
   Activity,
   Building2,
   Sparkles,
   FileText,
   MessageSquare,
   Printer,
-  ShieldCheck,
   AlertTriangle,
   Send,
 } from "lucide-react";
@@ -341,7 +339,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-27 pwa-token-cookie");
+    console.log("[BUILD] 2026-08-27 input-ui-v1");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -355,7 +353,6 @@ export default function Page() {
       urlToken || savedToken || decodeURIComponent(cookieToken) || "";
     if (activeToken) {
       setToken(activeToken);
-      localStorage.setItem("clinic_access_token", activeToken);
       localStorage.setItem("clinic_access_token", activeToken);
       // 💡 PWA引き継ぎ用Cookie（1年有効。Safariで?t=付きURLを一度開けばPWA側でも認識される）
       document.cookie = `clinic_access_token=${encodeURIComponent(activeToken)}; max-age=31536000; path=/; SameSite=Lax; Secure`;
@@ -722,7 +719,7 @@ export default function Page() {
   );
 
   return (
-    <main className="min-h-screen bg-slate-100 font-sans text-slate-800">
+    <main className="min-h-screen bg-bg font-sans text-ink">
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -802,35 +799,37 @@ export default function Page() {
         }}
       />
 
-      <header className="no-print bg-white border-b border-slate-200 text-slate-900 py-3.5 px-6 shadow-sm">
+      <header className="no-print bg-paper border-b-[1.5px] border-b-ink text-ink py-3.5 px-6">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-y-2">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 border border-blue-600 shadow-sm">
-              <Stethoscope className="h-5 w-5 text-white" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent">
+              <span className="font-serif-jp text-white text-lg font-bold leading-none">
+                歯
+              </span>
             </div>
             <div>
-              <h1 className="text-base font-bold tracking-wide">
+              <h1 className="font-serif-jp text-base font-bold tracking-wider">
                 デンピストAI
               </h1>
-              <p className="text-xs text-slate-500 hidden sm:block">
-                Denpist AI｜AI自費義歯カウンセリング支援
+              <p className="text-[9px] tracking-[0.2em] text-ink-soft hidden sm:block">
+                DENPIST AI
               </p>
             </div>
           </div>
           {/* 💡 医院名はこの接続状況ピルに集約（旧ヘッダーバッジ・フォーム見出しバッジ���重複表示を廃止）。「衛生士モード」表記は他モードがある誤解を招くため廃止。担当衛生士名はシートの「担当」に印字されるためモバイルでも表示必須 */}
           <div className="flex items-center gap-2">
             <div
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 border shadow-xs ${
+              className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 border ${
                 token && clinicName
-                  ? "bg-blue-50 border-blue-200"
+                  ? "bg-accent-tint border-accent"
                   : "bg-rose-50 border-rose-300"
               }`}
             >
               <Building2
-                className={`h-4 w-4 ${token && clinicName ? "text-blue-600" : "text-rose-600"}`}
+                className={`h-4 w-4 ${token && clinicName ? "text-accent" : "text-rose-600"}`}
               />
               <span
-                className={`text-xs font-bold ${token && clinicName ? "text-blue-900" : "text-rose-700"}`}
+                className={`text-xs font-bold ${token && clinicName ? "text-accent" : "text-rose-700"}`}
               >
                 {token
                   ? clinicName
@@ -848,7 +847,7 @@ export default function Page() {
               }}
               placeholder="担当衛生士名"
               title="シートの「担当」に印字されます"
-              className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-800 w-24 sm:w-32 focus:outline-none focus:border-blue-500 shadow-xs"
+              className="bg-white border border-line rounded-lg px-2.5 py-1.5 text-xs font-medium text-ink w-24 sm:w-32 focus:outline-none focus:border-accent"
             />
           </div>
         </div>
@@ -868,18 +867,18 @@ export default function Page() {
 
       <div className="app-layout mx-auto grid max-w-[1600px] grid-cols-1 gap-6 p-4 md:p-6 lg:grid-cols-[400px_1fr]">
         <section className="no-print space-y-3 h-fit">
-          <div className="flex justify-between items-center bg-white rounded-2xl shadow-md border border-slate-200 px-5 py-4">
-            <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <ShieldCheck className="text-blue-600" size={18} />
+          <div className="px-1 pt-1">
+            <h2 className="text-xs font-bold tracking-[0.14em] text-ink-soft">
               患者条件の入力
             </h2>
           </div>
 
-          <div className="space-y-3 text-xs">
+          <div className="text-xs">
             {/* 1. 入れ歯の使用状況 */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                1. 入れ歯の使用状況
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">01</span>
+                入れ歯の使用状況
               </label>
               <div className="flex gap-1.5">
                 {FORM_DATA.denture_status.map((item) => (
@@ -889,8 +888,8 @@ export default function Page() {
                     onClick={() => handleSelect("denture_status", item)}
                     className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
                       formData.denture_status === item
-                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                        ? "bg-accent-tint text-accent border-accent font-bold"
+                        : "bg-white text-ink border-line hover:border-accent"
                     }`}
                   >
                     {item}
@@ -900,9 +899,10 @@ export default function Page() {
             </div>
 
             {/* 2. 残っている歯 */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                2. 残っている歯
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">02</span>
+                残っている歯
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 {FORM_DATA.remaining_teeth.map((item) => (
@@ -912,8 +912,8 @@ export default function Page() {
                     onClick={() => handleSelect("remaining_teeth", item)}
                     className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
                       formData.remaining_teeth === item
-                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                        ? "bg-accent-tint text-accent border-accent font-bold"
+                        : "bg-white text-ink border-line hover:border-accent"
                     }`}
                   >
                     {item}
@@ -923,17 +923,18 @@ export default function Page() {
             </div>
 
             {/* 3. 使用年数 & 4. 調整履歴 */}
-            <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <div>
-                <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                  3. 現義歯の使用年数
+            <div className="grid grid-cols-2 gap-x-5 border-b border-line">
+              <div className="py-3.5">
+                <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                  <span className="font-serif-jp text-gold mr-1.5">03</span>
+                  現義歯の使用年数
                 </label>
                 <select
                   value={formData.denture_duration}
                   onChange={(e) =>
                     handleSelect("denture_duration", e.target.value)
                   }
-                  className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                  className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
                 >
                   {FORM_DATA.denture_duration
                     .filter((d) =>
@@ -948,16 +949,17 @@ export default function Page() {
                     ))}
                 </select>
               </div>
-              <div>
-                <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                  4. 調整・履歴
+              <div className="py-3.5">
+                <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                  <span className="font-serif-jp text-gold mr-1.5">04</span>
+                  調整・履歴
                 </label>
                 <select
                   value={formData.adjustment_history}
                   onChange={(e) =>
                     handleSelect("adjustment_history", e.target.value)
                   }
-                  className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                  className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
                 >
                   {FORM_DATA.adjustment_history
                     .filter((h) =>
@@ -975,15 +977,16 @@ export default function Page() {
             </div>
 
             {/* 5. 口の乾き & 6. 顎堤・粘膜の状態 */}
-            <div className="grid grid-cols-2 gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <div>
-                <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                  5. 口の乾き・唾液
+            <div className="grid grid-cols-2 gap-x-5 border-b border-line">
+              <div className="py-3.5">
+                <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                  <span className="font-serif-jp text-gold mr-1.5">05</span>
+                  口の乾き・唾液
                 </label>
                 <select
                   value={formData.oral_dryness}
                   onChange={(e) => handleSelect("oral_dryness", e.target.value)}
-                  className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                  className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
                 >
                   {FORM_DATA.oral_dryness.map((od) => (
                     <option key={od} value={od}>
@@ -992,14 +995,15 @@ export default function Page() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                  6. 顎堤・粘膜の状態
+              <div className="py-3.5">
+                <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                  <span className="font-serif-jp text-gold mr-1.5">06</span>
+                  顎堤・粘膜の状態
                 </label>
                 <select
                   value={formData.ridge_mucosa}
                   onChange={(e) => handleSelect("ridge_mucosa", e.target.value)}
-                  className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                  className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
                 >
                   {FORM_DATA.ridge_mucosa.map((m) => (
                     <option key={m} value={m}>
@@ -1011,16 +1015,17 @@ export default function Page() {
             </div>
 
             {/* 7. 期待値タイプ */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                7. 期待値タイプ
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">07</span>
+                期待値タイプ
               </label>
               <select
                 value={formData.expectation_type}
                 onChange={(e) =>
                   handleSelect("expectation_type", e.target.value)
                 }
-                className="w-full p-2.5 border rounded-lg bg-white border-slate-300 text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
               >
                 {FORM_DATA.expectation_type.map((ex) => (
                   <option key={ex} value={ex}>
@@ -1031,9 +1036,10 @@ export default function Page() {
             </div>
 
             {/* 8. 費用感度 */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                8. 費用感度
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">08</span>
+                費用感度
               </label>
               <div className="flex gap-1.5">
                 {FORM_DATA.cost_sensitivity.map((item) => (
@@ -1043,8 +1049,8 @@ export default function Page() {
                     onClick={() => handleSelect("cost_sensitivity", item)}
                     className={`flex-1 py-2.5 px-1 min-h-[44px] rounded-lg border font-medium transition text-center text-[11px] ${
                       formData.cost_sensitivity === item
-                        ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                        ? "bg-accent-tint text-accent border-accent font-bold"
+                        : "bg-white text-ink border-line hover:border-accent"
                     }`}
                   >
                     {item}
@@ -1054,9 +1060,10 @@ export default function Page() {
             </div>
 
             {/* 9. 現義歯の主な不満 */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                9. 現義歯の主な不満（複数可）
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">09</span>
+                現義歯の主な不満（複数可）
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.current_denture_complaints.map((item) => {
@@ -1071,8 +1078,8 @@ export default function Page() {
                       }
                       className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
                         isActive
-                          ? "bg-blue-600 text-white border-blue-600 font-bold shadow-md"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                          ? "bg-accent-tint text-accent border-accent font-bold"
+                          : "bg-white text-ink border-line hover:border-accent"
                       }`}
                     >
                       {item}
@@ -1083,9 +1090,10 @@ export default function Page() {
             </div>
 
             {/* 10. 追求したい情緒価値 */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                10. 追求したい情緒価値（複数可）
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">10</span>
+                追求したい情緒価値（複数可）
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.emotion_drivers.map((item) => {
@@ -1097,8 +1105,8 @@ export default function Page() {
                       onClick={() => handleMultiSelect("emotion_drivers", item)}
                       className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
                         isActive
-                          ? "bg-blue-600 text-white border-blue-600 font-bold shadow-md"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                          ? "bg-accent-tint text-accent border-accent font-bold"
+                          : "bg-white text-ink border-line hover:border-accent"
                       }`}
                     >
                       {item}
@@ -1109,9 +1117,10 @@ export default function Page() {
             </div>
 
             {/* 11. 要注意ワード */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                11. 要注意ワード（慎重モード）
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">11</span>
+                要注意ワード（慎重モード）
               </label>
               <div className="flex flex-wrap gap-1.5">
                 {FORM_DATA.red_flag_words.map((item) => {
@@ -1126,8 +1135,8 @@ export default function Page() {
                         isActive
                           ? isRose
                             ? "bg-rose-50 text-rose-700 border-rose-600 font-bold shadow-sm"
-                            : "bg-slate-700 text-white border-slate-700 font-bold shadow-sm"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                            : "bg-accent-tint text-accent border-accent font-bold"
+                          : "bg-white text-ink border-line hover:border-accent"
                       }`}
                     >
                       {item}
@@ -1138,9 +1147,10 @@ export default function Page() {
             </div>
 
             {/* 12. 現場メモ */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
-              <label className="block font-bold mb-1.5 text-slate-700 text-sm tracking-wide">
-                12. 現場メモ（任意）
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">12</span>
+                現場メモ（任意）
               </label>
               <input
                 type="text"
@@ -1149,7 +1159,7 @@ export default function Page() {
                   setFormData({ ...formData, free_memo: e.target.value })
                 }
                 placeholder="家族の同席希望、持病など"
-                className="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-base shadow-xs focus:border-blue-500 focus:outline-none transition"
+                className="w-full p-2.5 border border-line rounded-lg bg-white text-base shadow-xs focus:border-accent focus:outline-none transition"
               />
             </div>
           </div>
@@ -1157,7 +1167,7 @@ export default function Page() {
           <button
             onClick={handleGenerate}
             disabled={loading || !(token && clinicName)}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed text-base flex items-center justify-center gap-2 cursor-pointer mt-2"
+            className="w-full py-4 bg-ink hover:bg-accent text-white font-bold rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed text-base tracking-wider flex items-center justify-center gap-2 cursor-pointer mt-4"
           >
             {loading ? (
               <span className="flex items-center gap-2 animate-pulse">
@@ -1182,7 +1192,7 @@ export default function Page() {
               この結果は表示が崩れている可能性があります。「生成」をもう一度押すと改善します
             </p>
           ) : (
-            <p className="no-print mt-2 text-[11px] text-slate-400 text-center">
+            <p className="no-print mt-2 text-[11px] text-ink-soft text-center">
               内容や表示が正しくない場合は、もう一度「生成」を押してください（同じ条件で生成し直されます）
             </p>
           )}
@@ -1230,14 +1240,14 @@ export default function Page() {
             })()}
 
           {result ? (
-            <div className="bg-white p-5 rounded-2xl shadow-md border border-slate-200 flex flex-col h-full">
+            <div className="bg-paper p-5 rounded-2xl border border-line flex flex-col h-full">
               <div className="no-print flex justify-between items-center border-b pb-3 mb-4">
                 <div className="flex gap-2">
                   <button
                     onClick={() => setActiveTab("patient")}
                     className={`py-2 px-3 sm:px-4 min-h-[44px] justify-center font-bold text-xs transition flex items-center gap-1.5 ${
                       activeTab === "patient"
-                        ? "text-blue-700 border-b-2 border-blue-600"
+                        ? "text-accent border-b-2 border-accent"
                         : "text-slate-500 hover:text-slate-900 border-b-2 border-transparent"
                     }`}
                   >
@@ -1266,7 +1276,7 @@ export default function Page() {
                     <button
                       onClick={handleOpenPrintPdf}
                       disabled={printingPdf}
-                      className="py-2 px-4 min-h-[44px] justify-center bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                      className="py-2 px-4 min-h-[44px] justify-center bg-white border border-line text-ink hover:bg-bg font-bold rounded-lg text-xs transition flex items-center gap-1.5 disabled:opacity-50"
                     >
                       <Printer size={16} />{" "}
                       <span className="hidden sm:inline">
@@ -1274,14 +1284,14 @@ export default function Page() {
                       </span>
                     </button>
                     {isDemo ? (
-                      <span className="py-2 px-3 min-h-[44px] flex items-center text-[11px] font-bold text-slate-500 bg-slate-100 border border-slate-200 rounded-lg">
+                      <span className="py-2 px-3 min-h-[44px] flex items-center text-[11px] font-bold text-ink-soft bg-bg border border-line rounded-lg">
                         デモ版：メール送信は利用できません
                       </span>
                     ) : (
                       <button
                         onClick={handleSendPrint}
                         disabled={sending}
-                        className="py-2 px-4 min-h-[44px] justify-center bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow disabled:opacity-50"
+                        className="py-2 px-4 min-h-[44px] justify-center bg-accent hover:bg-ink text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 disabled:opacity-50"
                       >
                         <Send size={16} />{" "}
                         <span className="hidden sm:inline">
@@ -1313,7 +1323,7 @@ export default function Page() {
 
               <div
                 ref={previewAreaRef}
-                className="flex-1 overflow-auto bg-slate-200 p-4 rounded-xl border border-slate-300 flex flex-col items-center gap-6"
+                className="flex-1 overflow-auto bg-bg p-4 rounded-xl border border-line flex flex-col items-center gap-6"
               >
                 {activeTab === "patient" &&
                   (() => {
@@ -1625,7 +1635,7 @@ export default function Page() {
               </div>
             </div>
           ) : (
-            <div className="no-print flex-1 flex flex-col items-center justify-center text-slate-400 gap-3 border-2 border-dashed border-slate-200 rounded-xl bg-white p-8">
+            <div className="no-print flex-1 flex flex-col items-center justify-center text-ink-soft gap-3 border-2 border-dashed border-line rounded-xl bg-paper p-8">
               <FileText size={48} className="opacity-20 text-slate-600" />
               <p className="text-xs font-medium text-slate-500">
                 条件を選択して「カウンセリングシート生成」を押してください
