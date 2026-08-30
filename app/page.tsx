@@ -24,6 +24,15 @@ const FORM_DATA = {
     "ほとんど無い",
     "1本もない（無歯顎）",
   ],
+  target_jaw: ["上顎", "下顎", "両顎"],
+  defect_site: [
+    "前歯部",
+    "小臼歯部",
+    "大臼歯部",
+    "広範囲（複数部位）",
+    "わからない",
+    "該当なし（総義歯）",
+  ],
   current_denture_complaints: [
     "痛い",
     "外れやすい",
@@ -67,6 +76,159 @@ const FORM_DATA = {
     "何でも噛める",
   ],
 };
+
+// 💡 初期フォーム状態（判定関数の型参照のためモジュールレベルに切り出し）
+const INITIAL_FORM_DATA = {
+  denture_status: "使っている",
+  remaining_teeth: "ほとんど無い",
+  target_jaw: "上顎",
+  defect_site: "該当なし（総義歯）", // 💡 初期値の残存歯が「ほとんど無い」（FD扱い）のため
+  current_denture_complaints: [] as string[],
+  denture_duration: "1〜5年",
+  adjustment_history: "調整しても改善しない",
+  oral_dryness: "普通",
+  ridge_mucosa: "しっかり",
+  emotion_drivers: ["家族と食事"] as string[],
+  expectation_type: "快適なら満足",
+  cost_sensitivity: "価値が高ければ許容",
+  red_flag_words: ["特になし"] as string[],
+  free_memo: "",
+};
+type FormState = typeof INITIAL_FORM_DATA;
+
+// ===== 判定テーブル v1.1（2026-08-30 監修者確定） =====
+// 💡 分岐・第一候補選定・価格・費用換算はこの関数で確定させ、Difyプロンプトには結果のみ注入する。
+//    プロンプト側での再判定は禁止（ハルシネーション防止）。ここを変更したらDifyプロンプトの
+//    「システム判定結果」セクションと整合しているか必ず確認すること。
+const CANDIDATES = {
+  ELASTIC_STANDARD: {
+    name: "弾性樹脂床（ノンクラスプデンチャー）スタンダード",
+    priceRange: "約15万円（片顎・税込）",
+    midPrice: 150000,
+  },
+  ELASTIC_PREMIUM: {
+    name: "弾性樹脂床（ノンクラスプデンチャー）プレミアム",
+    priceRange: "約25万円（片顎・税込）",
+    midPrice: 250000,
+  },
+  METAL_PD: {
+    name: "金属床（コバルトクロム）部分義歯",
+    priceRange: "約25〜40万円（片顎・税込）",
+    midPrice: 325000,
+  },
+  METAL_FD: {
+    name: "金属床（コバルトクロム）総義歯",
+    priceRange: "約25〜40万円（片顎・税込）",
+    midPrice: 325000,
+  },
+  SILICONE: {
+    name: "シリコーン（軟性裏装）付き義歯",
+    priceRange:
+      "約27万円（義歯本体込・片顎・税込）／既存の入れ歯への後付け加工の場合は約10〜15万円",
+    midPrice: 270000,
+  },
+  PRECISION: {
+    name: "精密義歯（オーダーメイド精密型）",
+    priceRange: "約33〜55万円（片顎・税込）",
+    midPrice: 440000,
+  },
+} as const;
+type Candidate = (typeof CANDIDATES)[keyof typeof CANDIDATES];
+
+// 💡 費用換算: レンジ中央値 ÷ 5年 ÷ 365日（プロンプトには計算させない）
+const pricePerDayOf = (c: Candidate) => `約${Math.round(c.midPrice / 1825)}円`;
+
+type Decision = {
+  sheetMode: "cautious" | "insurance_first" | "normal";
+  firstCandidate: string;
+  candidatePriceRange: string;
+  pricePerDay: string;
+  noteFlags: string[];
+};
+
+function computeDecision(f: FormState): Decision {
+  // P0: 慎重モード（要注意ワードが1つでもあれば他の全判定より優先）
+  if (f.red_flag_words.some((w) => w !== "特になし")) {
+    return {
+      sheetMode: "cautious",
+      firstCandidate: "",
+      candidatePriceRange: "",
+      pricePerDay: "",
+      noteFlags: [],
+    };
+  }
+
+  // P2: PD/FD判定（「ほとんど無い」は残存歯で支えるPDが現実的に困難なためFD扱い）
+  const isPD =
+    f.remaining_teeth === "ほとんどある" || f.remaining_teeth === "少しある";
+  const complaints = f.current_denture_complaints;
+  const dry = f.oral_dryness === "乾いている・少ない";
+  const ridgeWeak = f.ridge_mucosa === "平坦・やせ・痛みやすい";
+  const adjustFailed =
+    f.adjustment_history === "調整しても改善しない" ||
+    f.adjustment_history === "作り直したがダメ";
+  const narrowDefect =
+    f.defect_site === "前歯部" || f.defect_site === "小臼歯部"; // 「わからない」は広範囲扱い（安全側）
+
+  // 共通フラグ（候補に依存しないもの）
+  const noteFlags: string[] = [];
+  if (dry) noteFlags.push("dry_mouth");
+  if (ridgeWeak) noteFlags.push("ridge_weak");
+  if (f.cost_sensitivity === "費用重視") noteFlags.push("cost_conscious");
+  if (f.remaining_teeth === "ほとんど無い")
+    noteFlags.push("pre_treatment_required");
+  if (f.target_jaw === "両顎") noteFlags.push("both_jaws_double");
+
+  let sheetMode: Decision["sheetMode"];
+  let c: Candidate;
+
+  if (f.denture_status === "使っていない（初めて）") {
+    // P1: 未使用者 → 保険ファースト＋「次の一歩」の参考候補
+    sheetMode = "insurance_first";
+    c = isPD
+      ? narrowDefect
+        ? CANDIDATES.ELASTIC_STANDARD
+        : CANDIDATES.ELASTIC_PREMIUM
+      : CANDIDATES.PRECISION;
+  } else if (isPD) {
+    // P3: 部分床（normal）
+    sheetMode = "normal";
+    if (complaints.includes("痛い")) {
+      c = dry ? CANDIDATES.METAL_PD : CANDIDATES.SILICONE; // 乾燥時はシリコーンを第一候補から除外
+    } else if (complaints.includes("見た目が悪い")) {
+      c = narrowDefect
+        ? CANDIDATES.ELASTIC_STANDARD
+        : CANDIDATES.ELASTIC_PREMIUM;
+    } else {
+      c = CANDIDATES.METAL_PD; // 調整不応・外れ・噛めない・その他のデフォルト
+    }
+  } else {
+    // P4: 総義歯（normal）
+    sheetMode = "normal";
+    if (adjustFailed) c = CANDIDATES.PRECISION;
+    else if (complaints.includes("痛い") || ridgeWeak)
+      c = dry ? CANDIDATES.PRECISION : CANDIDATES.SILICONE;
+    else if (complaints.includes("外れやすい")) c = CANDIDATES.PRECISION;
+    else if (complaints.includes("噛めない") && f.ridge_mucosa === "しっかり")
+      c = CANDIDATES.METAL_FD;
+    else c = CANDIDATES.PRECISION;
+  }
+
+  // 候補依存フラグ
+  const isMetal = c === CANDIDATES.METAL_PD || c === CANDIDATES.METAL_FD;
+  if (isMetal && f.target_jaw !== "上顎")
+    noteFlags.push("lower_jaw_metal_caution");
+  if (isMetal && f.cost_sensitivity !== "費用重視") noteFlags.push("ti_option");
+  if (c === CANDIDATES.SILICONE) noteFlags.push("silicone_maintenance");
+
+  return {
+    sheetMode,
+    firstCandidate: c.name,
+    candidatePriceRange: c.priceRange,
+    pricePerDay: pricePerDayOf(c),
+    noteFlags,
+  };
+}
 
 const LOADING_STEPS = [
   "患者様のお悩み・口腔条件を解析中...",
@@ -298,20 +460,7 @@ export default function Page() {
   const [staffName, setStaffName] = useState("");
   const [isStandalone, setIsStandalone] = useState(true); // PWA判定（初期true=バナー非表示。マウント後に実判定）
 
-  const [formData, setFormData] = useState({
-    denture_status: "使っている",
-    remaining_teeth: "ほとんど無い",
-    current_denture_complaints: [] as string[],
-    denture_duration: "1〜5年",
-    adjustment_history: "調整しても改善しない",
-    oral_dryness: "普通",
-    ridge_mucosa: "しっかり",
-    emotion_drivers: ["家族と食事"],
-    expectation_type: "快適なら満足",
-    cost_sensitivity: "価値が高ければ許容",
-    red_flag_words: ["特になし"],
-    free_memo: "",
-  });
+  const [formData, setFormData] = useState<FormState>(INITIAL_FORM_DATA);
 
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -339,7 +488,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-27 input-ui-v1");
+    console.log("[BUILD] 2026-08-30 decision-table-v1.1");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -446,6 +595,13 @@ export default function Page() {
             next.adjustment_history = "調整しても改善しない";
         }
       }
+      // 💡 総義歯扱い（ほとんど無い／無歯顎）を選んだら欠損部位を「該当なし（総義歯）」に固定（Dify定義との整合）
+      if (key === "remaining_teeth") {
+        const fd = value === "ほとんど無い" || value === "1本もない（無歯顎）";
+        if (fd) next.defect_site = "該当なし（総義歯）";
+        else if (next.defect_site === "該当なし（総義歯）")
+          next.defect_site = "前歯部";
+      }
       return next;
     });
   };
@@ -477,9 +633,14 @@ export default function Page() {
     showError(null);
     setResult(null);
 
+    // 💡 判定テーブルで候補・価格・換算・フラグを確定（AIには結果のみ渡す）
+    const decision = computeDecision(formData);
+
     const payload = {
       denture_status: formData.denture_status,
       remaining_teeth: formData.remaining_teeth,
+      target_jaw: formData.target_jaw,
+      defect_site: formData.defect_site,
       current_denture_complaints:
         formData.current_denture_complaints.join(", "),
       denture_duration: formData.denture_duration,
@@ -491,6 +652,12 @@ export default function Page() {
       cost_sensitivity: formData.cost_sensitivity,
       red_flag_words: formData.red_flag_words.join(", "),
       free_memo: formData.free_memo || "特になし",
+      sheet_mode: decision.sheetMode,
+      first_candidate: decision.firstCandidate,
+      candidate_price_range: decision.candidatePriceRange,
+      price_per_day: decision.pricePerDay,
+      note_flags:
+        decision.noteFlags.length > 0 ? decision.noteFlags.join(", ") : "なし",
       staffName: staffName.trim(), // 👈 レポートの「担当」欄用（/api/counseling 側で [[STAFF_NAME]] をこの値に置換する）
       token: token, // 👈 医院特定用（usage_logs の clinic_id を動的化するため）
     };
@@ -663,9 +830,7 @@ export default function Page() {
     if (!result) return false;
     const talkBroken = !result.talkScript || !result.talkScript.includes("■");
     // 💡 慎重モード（要注意ワードが選択されている）では比較表を出さないのが正しい動作のため、表の欠落は異常とみなさない
-    const cautiousInput = formData.red_flag_words.some(
-      (w: string) => w !== "特になし",
-    );
+    const cautiousInput = computeDecision(formData).sheetMode === "cautious";
     const sheet = parsePatientSheet(result.patientSheet);
     const tableMissing =
       !cautiousInput && !sheet.sections.some((s) => s.body.includes("<table"));
@@ -923,11 +1088,61 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 3. 使用年数 & 4. 調整履歴 */}
+            {/* 3. 対象の顎 */}
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">03</span>
+                対象の顎
+              </label>
+              <div className="flex gap-1.5">
+                {FORM_DATA.target_jaw.map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => handleSelect("target_jaw", item)}
+                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                      formData.target_jaw === item
+                        ? "bg-accent-tint text-accent border-accent font-bold"
+                        : "bg-white text-ink border-line hover:border-accent"
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 4. 欠損部位（総義歯扱いの場合は「該当なし（総義歯）」に固定される） */}
+            <div className="py-3.5 border-b border-line">
+              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+                <span className="font-serif-jp text-gold mr-1.5">04</span>
+                欠損部位
+              </label>
+              <select
+                value={formData.defect_site}
+                onChange={(e) => handleSelect("defect_site", e.target.value)}
+                className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
+              >
+                {FORM_DATA.defect_site
+                  .filter((d) =>
+                    formData.remaining_teeth === "ほとんど無い" ||
+                    formData.remaining_teeth === "1本もない（無歯顎）"
+                      ? d === "該当なし（総義歯）"
+                      : d !== "該当なし（総義歯）",
+                  )
+                  .map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* 5. 使用年数 & 6. 調整履歴 */}
             <div className="grid grid-cols-2 gap-x-5 border-b border-line">
               <div className="py-3.5">
                 <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                  <span className="font-serif-jp text-gold mr-1.5">03</span>
+                  <span className="font-serif-jp text-gold mr-1.5">05</span>
                   現義歯の使用年数
                 </label>
                 <select
@@ -952,7 +1167,7 @@ export default function Page() {
               </div>
               <div className="py-3.5">
                 <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                  <span className="font-serif-jp text-gold mr-1.5">04</span>
+                  <span className="font-serif-jp text-gold mr-1.5">06</span>
                   調整・履歴
                 </label>
                 <select
@@ -977,11 +1192,11 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 5. 口の乾き & 6. 顎堤・粘膜の状態 */}
+            {/* 7. 口の乾き & 8. 顎堤・粘膜の状態 */}
             <div className="grid grid-cols-2 gap-x-5 border-b border-line">
               <div className="py-3.5">
                 <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                  <span className="font-serif-jp text-gold mr-1.5">05</span>
+                  <span className="font-serif-jp text-gold mr-1.5">07</span>
                   口の乾き・唾液
                 </label>
                 <select
@@ -998,7 +1213,7 @@ export default function Page() {
               </div>
               <div className="py-3.5">
                 <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                  <span className="font-serif-jp text-gold mr-1.5">06</span>
+                  <span className="font-serif-jp text-gold mr-1.5">08</span>
                   顎堤・粘膜の状態
                 </label>
                 <select
@@ -1015,10 +1230,10 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 7. 期待値タイプ */}
+            {/* 9. 期待値タイプ */}
             <div className="py-3.5 border-b border-line">
               <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">07</span>
+                <span className="font-serif-jp text-gold mr-1.5">09</span>
                 期待値タイプ
               </label>
               <select
@@ -1036,10 +1251,10 @@ export default function Page() {
               </select>
             </div>
 
-            {/* 8. 費用感度 */}
+            {/* 10. 費用感度 */}
             <div className="py-3.5 border-b border-line">
               <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">08</span>
+                <span className="font-serif-jp text-gold mr-1.5">10</span>
                 費用感度
               </label>
               <div className="flex gap-1.5">
@@ -1060,10 +1275,10 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 9. 現義歯の主な不満 */}
+            {/* 11. 現義歯の主な不満 */}
             <div className="py-3.5 border-b border-line">
               <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">09</span>
+                <span className="font-serif-jp text-gold mr-1.5">11</span>
                 現義歯の主な不満（複数可）
               </label>
               <div className="flex flex-wrap gap-1.5">
@@ -1090,10 +1305,10 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 10. 追求したい情緒価値 */}
+            {/* 12. 追求したい情緒価値 */}
             <div className="py-3.5 border-b border-line">
               <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">10</span>
+                <span className="font-serif-jp text-gold mr-1.5">12</span>
                 追求したい情緒価値（複数可）
               </label>
               <div className="flex flex-wrap gap-1.5">
@@ -1117,10 +1332,10 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 11. 要注意ワード */}
+            {/* 13. 要注意ワード */}
             <div className="py-3.5 border-b border-line">
               <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">11</span>
+                <span className="font-serif-jp text-gold mr-1.5">13</span>
                 要注意ワード（慎重モード）
               </label>
               <div className="flex flex-wrap gap-1.5">
@@ -1147,10 +1362,10 @@ export default function Page() {
               </div>
             </div>
 
-            {/* 12. 現場メモ */}
+            {/* 14. 現場メモ */}
             <div className="py-3.5 border-b border-line">
               <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">12</span>
+                <span className="font-serif-jp text-gold mr-1.5">14</span>
                 現場メモ（任意）
               </label>
               <input
