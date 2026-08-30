@@ -488,7 +488,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-30 decision-table-v1.1");
+    console.log("[BUILD] 2026-08-30 decision-table-v1.1-render-fix");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -1548,10 +1548,12 @@ export default function Page() {
                       s.heading.includes("悩み"),
                     );
                     // 💡 慎重モードでは「知っておいていただきたいこと」がこの枠に入る（比較表・おすすめを出さない代わりの本文セクション）
+                    // 💡 insurance_firstモードの見出しは「次の一歩の参考」になるため振り分けに含める
                     const recommend = sheet.sections.find(
                       (s) =>
                         s.heading.includes("おすすめ") ||
-                        s.heading.includes("知っておいて"),
+                        s.heading.includes("知っておいて") ||
+                        s.heading.includes("次の一歩"),
                     );
                     const tableSection = sheet.sections.find((s) =>
                       s.body.includes("<table"),
@@ -1565,6 +1567,10 @@ export default function Page() {
                     );
                     const costSection = sheet.sections.find((s) =>
                       s.heading.includes("費用"),
+                    );
+                    // 💡 「ご家族向けのまとめ」はどの枠にも合致せず非表示になっていたため追加（2026-08-30 修正）
+                    const familySection = sheet.sections.find((s) =>
+                      s.heading.includes("ご家族"),
                     );
 
                     // 💡 シートのタイトルはモデル出力を使わずフロントで固定する（2026-08-27 確定仕様）。
@@ -1695,42 +1701,60 @@ export default function Page() {
                         </A4PageWrapper>
 
                         {/* PAGE 2 */}
-                        {!singlePageSheet && (prosCons || costSection) && (
-                          <A4PageWrapper isLast>
-                            <Header />
-                            <div className="grid grid-cols-1 gap-6">
-                              {prosCons && (
-                                <div>
-                                  <SectionHead>
-                                    {stripEmoji(prosCons.heading)}
-                                  </SectionHead>
-                                  <div
-                                    className="text-[13px] leading-[2] text-ink"
-                                    dangerouslySetInnerHTML={{
-                                      __html: renderInline(prosCons.body),
-                                    }}
-                                  />
-                                </div>
-                              )}
-                              {costSection && (
-                                <div>
-                                  <SectionHead gold>
-                                    {stripEmoji(costSection.heading)}
-                                  </SectionHead>
-                                  <div className="border border-line px-5 py-4">
+                        {!singlePageSheet &&
+                          (prosCons || costSection || familySection) && (
+                            <A4PageWrapper isLast>
+                              <Header />
+                              <div className="grid grid-cols-1 gap-6">
+                                {prosCons && (
+                                  <div>
+                                    <SectionHead>
+                                      {stripEmoji(prosCons.heading)}
+                                    </SectionHead>
                                     <div
                                       className="text-[13px] leading-[2] text-ink"
                                       dangerouslySetInnerHTML={{
-                                        __html: renderInline(costSection.body),
+                                        __html: renderInline(prosCons.body),
                                       }}
                                     />
                                   </div>
-                                </div>
-                              )}
-                            </div>
-                            <Footer />
-                          </A4PageWrapper>
-                        )}
+                                )}
+                                {costSection && (
+                                  <div>
+                                    <SectionHead gold>
+                                      {stripEmoji(costSection.heading)}
+                                    </SectionHead>
+                                    <div className="border border-line px-5 py-4">
+                                      <div
+                                        className="text-[13px] leading-[2] text-ink"
+                                        dangerouslySetInnerHTML={{
+                                          __html: renderInline(
+                                            costSection.body,
+                                          ),
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                {familySection && (
+                                  <div>
+                                    <SectionHead>
+                                      {stripEmoji(familySection.heading)}
+                                    </SectionHead>
+                                    <div
+                                      className="text-[13px] leading-[2] text-ink"
+                                      dangerouslySetInnerHTML={{
+                                        __html: renderInline(
+                                          familySection.body,
+                                        ),
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              <Footer />
+                            </A4PageWrapper>
+                          )}
                       </>
                     );
                   })()}
