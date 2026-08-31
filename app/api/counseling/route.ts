@@ -6,7 +6,9 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     // 1. APIキーのクリーンアップ（余分な空白・改行・引用符を完全除去）
-    const rawApiKey = process.env.DIFY_API_KEY || "";
+    const isCrown = body.mode === "crown";
+    const rawApiKey =
+      (isCrown ? process.env.DIFY_API_KEY_CROWN : process.env.DIFY_API_KEY) || "";
     const apiKey = rawApiKey.replace(/[\[\]\(\)'"\s]/g, "").trim();
 
     // 2. 2重貼り付け等のURL破損を判定し、正しいベースURL（https://.../v1）のみを強制抽出
@@ -18,8 +20,9 @@ export async function POST(req: Request) {
     const targetUrl = `${baseUrl}/completion-messages`;
 
     if (!apiKey) {
+      const keyName = isCrown ? "DIFY_API_KEY_CROWN" : "DIFY_API_KEY";
       return NextResponse.json(
-        { success: false, error: "DIFY_API_KEY が設定されていません。" },
+        { success: false, error: `${keyName} が設定されていません。` },
         { status: 500 }
       );
     }

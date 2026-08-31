@@ -75,10 +75,24 @@ const FORM_DATA = {
     "絶対に外れない",
     "何でも噛める",
   ],
+  // クラウン版
+  crown_target_site: ["前歯（1〜3番）", "小臼歯（4〜5番）", "大臼歯（6〜7番）"],
+  crown_visibility: ["よく見える", "あまり見えない", "ほとんど見えない"],
+  crown_chief_priority: [
+    "見た目の自然さ",
+    "強度・長持ち",
+    "金属を避けたい",
+  ],
+  crown_metal_allergy: ["特になし", "あり・疑いあり"],
+  crown_bruxism: ["特になし", "あり"],
+  crown_has_pain: ["特になし", "あり"],
+  crown_cost_sensitivity: ["特になし", "費用は抑えたい"],
 };
 
-// 💡 初期フォーム状態（判定関数の型参照のためモジュールレベルに切り出し）
+// 💡 初期フォーム状態（判定関数の型参照のためモジュジュールレベルに切り出し）
 const INITIAL_FORM_DATA = {
+  mode: "denture" as const,
+  // 義歯版
   denture_status: "使っている",
   remaining_teeth: "ほとんど無い",
   target_jaw: "上顎",
@@ -92,9 +106,33 @@ const INITIAL_FORM_DATA = {
   expectation_type: "快適なら満足",
   cost_sensitivity: "価値が高ければ許容",
   red_flag_words: ["特になし"] as string[],
+  // クラウン版
+  target_site: "前歯（1〜3番）",
+  visibility: "よく見える",
+  chief_priority: "見た目の自然さ",
+  metal_allergy: "特になし",
+  bruxism: "特になし",
+  has_pain: "特になし",
   free_memo: "",
 };
-type FormState = typeof INITIAL_FORM_DATA;
+type FormStateBase = typeof INITIAL_FORM_DATA;
+type FormState = Omit<FormStateBase, "mode"> & {
+  mode: "denture" | "crown";
+};
+type CrownFormState = FormState & { mode: "crown" };
+
+const INITIAL_CROWN_FORM_DATA: CrownFormState = {
+  ...INITIAL_FORM_DATA,
+  mode: "crown",
+  target_site: "前歯（1〜3番）",
+  visibility: "よく見える",
+  chief_priority: "見た目の自然さ",
+  metal_allergy: "特になし",
+  bruxism: "特になし",
+  has_pain: "特になし",
+  cost_sensitivity: "特になし",
+  free_memo: "",
+};
 
 // ===== 判定テーブル v1.1（2026-08-30 監修者確定） =====
 // 💡 分岐・第一候補選定・価格・費用換算はこの関数で確定させ、Difyプロンプトには結果のみ注入する。
@@ -137,6 +175,99 @@ type Candidate = (typeof CANDIDATES)[keyof typeof CANDIDATES];
 
 // 💡 費用換算: レンジ中央値 ÷ 5年 ÷ 365日（プロンプトには計算させない）
 const pricePerDayOf = (c: Candidate) => `約${Math.round(c.midPrice / 1825)}円`;
+
+// ===== Phase 1 固定テキスト（Difyプロンプト v2.1 定型文） =====
+// これらの文言はコード側で一元管理し、AI出力に依存しない。
+
+const DISCLAIMER_DENTURE =
+  "本シートは一般的な情報提供を目的としたAIによる客観分析であり、診断ではありません。最終的な治療方針は歯科医師にご相談のうえ決定してください。";
+
+const INSURANCE_TEXT_DENTURE =
+  "保険の入れ歯は、国の規則で使える素材や製作の工程が定められている、お口の基本的な機能を回復するためのものです。";
+
+const COST_NOTE_DENTURE =
+  "※費用は一般的な相場の目安です。医院によって診査・設計の工程が異なり、より精密な工程を行う場合は上振れする傾向があります。また、欠損している歯の数やお口の状態によっても変わりますので、詳しくは医院にご確認ください。";
+
+// note_flags → 固定注記文のマッピング（lower_jaw_metal_caution はAI生成制約としてプロンプト側に残すため含めない）
+const NOTE_TEXTS_DENTURE: Record<string, string> = {
+  dry_mouth:
+    "※お口の乾燥がある場合、素材を問わず痛みが出やすいことがあります。内面にワセリンを塗る等のひと手間で軽減できる場合がありますので、歯科医師にご相談ください。",
+  ridge_weak:
+    "※顎の土台の形は時間とともに変化しやすいため、完成後も調整やリライン（内面の調整）が継続的に必要になる場合があります。",
+  cost_conscious: "まずは保険の入れ歯の調整・作り直しという選択肢もあります。",
+  pre_treatment_required:
+    "※残っている歯の治療（抜歯や、歯をカットして根を覆う処置など）を行ってからの入れ歯作りとなります。歯の治療の費用と期間は別途かかります。また、残っている歯の状態によっては、保存して部分的な入れ歯にできる可能性も残ります。いずれも歯科医師の検査で判断します。",
+  both_jaws_double:
+    "なお、これは片顎あたりの目安で、両顎の場合はおおむね2倍となります。",
+  ti_option:
+    "※金属床には、より軽く金属アレルギーのリスクが低いチタンという選択肢もあります。",
+  silicone_maintenance:
+    "※シリコーンは経年で硬くなるため、定期的な作り替え（再加工。目安は1〜2年に1回程度）が必要で、その都度費用がかかります。",
+};
+
+// 義歯版比較表の自費列コンテンツ（監修者による後日レビュー対象）
+const DENTURE_COMPARISON_CONTENTS: Record<string, Record<string, string>> = {
+  elastic_standard: {
+    purpose: "金属のバネを使わない、見た目に配慮した部分入れ歯",
+    material: "弾性樹脂（金属のバネなし）",
+    pain_and_loose:
+      "歯ぐきに沿う柔らかい素材で固定。金属のバネが歯や歯ぐきに当たらない",
+    experience:
+      "笑ったときに金属が見えにくく、人前での表情に自信につながる可能性があります",
+    visits: "3〜5回程度",
+    cost: "約15万円（税込・片額）",
+  },
+  elastic_premium: {
+    purpose: "見た目と強度のバランスを取った部分入れ歯",
+    material: "弾性樹脂＋金属の骨格（補強）",
+    pain_and_loose: "骨格で強度を確保しつつ、柔らかい素材で固定",
+    experience:
+      "広い欠損でも見た目と使い心地のバランスを取りやすい可能性があります",
+    visits: "4〜6回程度",
+    cost: "約25万円（税込・片額）",
+  },
+  metal: {
+    purpose:
+      "薄く丈夫な設計で、異物感と温度の伝わりに配慮した入れ歯",
+    material: "金属（コバルトクロム等）",
+    pain_and_loose: "たわみにくいため、噛んだ力が床全体に分散しやすい",
+    experience:
+      "食べ物の温度が伝わりやすく、食事の楽しみにつながる可能性があります",
+    visits: "4〜6回程度",
+    cost: "約25万〜40万円（税込・片額）",
+  },
+  silicone: {
+    purpose: "歯ぐきへの当たりをやわらげることに特化した入れ歯",
+    material: "レジン床＋内面にシリコーンのクッション",
+    pain_and_loose: "内面のクッションが歯ぐきへの当たりをやわらげる",
+    experience:
+      "当たりのやわらかさが、食事時の負担感の軽減につながる可能性があります",
+    visits: "4〜6回程度",
+    cost: "約27万円（税込・片額。後付けの場合は別途10万〜15万円程度）",
+  },
+  precision: {
+    purpose:
+      "型取りと噛み合わせの工程に時間をかけ、フィット精度を高める作り方",
+    material: "素材ではなく「作り方」の違い（工程を個別に精密化）",
+    pain_and_loose: "丁寧な工程により、吸着・フィットの精度を高める",
+    experience:
+      "吸着・フィットの精度が、外れにくさの実感につながる可能性があります",
+    visits: "6〜10回程度",
+    cost: "約33万〜55万円（税込・片額）",
+  },
+};
+
+function resolveDentureTableContent(firstCandidate: string) {
+  if (firstCandidate.includes("スタンダード"))
+    return DENTURE_COMPARISON_CONTENTS.elastic_standard;
+  if (firstCandidate.includes("プレミアム"))
+    return DENTURE_COMPARISON_CONTENTS.elastic_premium;
+  if (firstCandidate.includes("金属床"))
+    return DENTURE_COMPARISON_CONTENTS.metal;
+  if (firstCandidate.includes("シリコーン"))
+    return DENTURE_COMPARISON_CONTENTS.silicone;
+  return DENTURE_COMPARISON_CONTENTS.precision;
+}
 
 type Decision = {
   sheetMode: "cautious" | "insurance_first" | "normal";
@@ -238,6 +369,10 @@ const LOADING_STEPS = [
 
 type SheetSection = { heading: string; body: string };
 
+function escapeRegExp(string: string): string {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function parsePatientSheet(raw: string) {
   const lines = raw.trim().split("\n");
   const title =
@@ -245,10 +380,32 @@ function parsePatientSheet(raw: string) {
     "【客観分析レポート】お口の治療選択肢の比較";
   const issueLine =
     lines.find((l) => l.includes("発行日") || l.includes("管理ID")) ?? "";
-  const disclaimer =
-    "本シートは一般的な情報提供を目的としたAIによる客観分析であり、診断ではありません。最終的な治療方針は歯科医師にご相談のうえ決定してください。";
 
-  const bodyOnly = raw.replace(/本シートは一般的な情報提供[\s\S]*$/, "");
+  // コード側で固定表示する定型文・表をAI出力から除去（二重出力防止）
+  let bodyOnly = raw.replace(/本シートは一般的な情報提供[\s\S]*$/, "");
+
+  // HTMLテーブルブロックを除去
+  bodyOnly = bodyOnly.replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, "");
+  // Markdownテーブルブロック（| 列を含む連続行）を除去
+  bodyOnly = bodyOnly.replace(/(?:\n\|[^\n]*\|[^\n]*)+/g, "");
+
+  // 保険説明の定型文を除去
+  bodyOnly = bodyOnly.replace(
+    /保険の入れ歯は、国の規則で使える素材や製作の工程が定められている、お口の基本的な機能を回復するためのものです。/g,
+    "",
+  );
+
+  // 費用注記を除去
+  bodyOnly = bodyOnly.replace(
+    /※費用は一般的な相場の目安です[\s\S]*?医院にご確認ください。/g,
+    "",
+  );
+
+  // note_flags に対応する固定注記文を除去（lower_jaw_metal_caution はAI生成制約のため含めない）
+  Object.values(NOTE_TEXTS_DENTURE).forEach((text) => {
+    if (!text) return;
+    bodyOnly = bodyOnly.replace(new RegExp(escapeRegExp(text), "g"), "");
+  });
 
   const sectionRegex = /■\s*(.+)\n([\s\S]*?)(?=\n■\s|$)/g;
   const sections: SheetSection[] = [];
@@ -256,7 +413,7 @@ function parsePatientSheet(raw: string) {
   while ((m = sectionRegex.exec(bodyOnly)) !== null) {
     sections.push({ heading: m[1].trim(), body: m[2].trim() });
   }
-  return { title, issueLine, sections, disclaimer };
+  return { title, issueLine, sections, disclaimer: DISCLAIMER_DENTURE };
 }
 
 const renderInline = (text: string) =>
@@ -392,6 +549,383 @@ const cleanTableHtml = (html: string) => {
   return cleaned;
 };
 
+// ===== 義歯版 コード固定比較表コンポーネント =====
+// AI生成の比較表に代わり、コード側から固定文言でレンダリングする。
+// 列構成：項目／保険の入れ歯（レジン床）／first_candidate の名称
+// 各セル文言は監修者による後日レビュー対象。
+function DentureComparisonTable({
+  firstCandidate,
+  sheetMode,
+}: {
+  firstCandidate: string;
+  sheetMode: Decision["sheetMode"];
+}) {
+  const badgeLabel = sheetMode === "insurance_first" ? "参考候補" : "第一候補";
+  const content = resolveDentureTableContent(firstCandidate);
+
+  const rows = [
+    {
+      item: "主な目的",
+      insurance: "国の規則に基づく、基本的な咀嚼・発音機能の回復",
+      self: content.purpose,
+    },
+    {
+      item: "使用素材",
+      insurance: "レジン（プラスチック）床",
+      self: content.material,
+    },
+    {
+      item: "痛み・外れへの配慮",
+      insurance: "標準的な設計。装着後の調整で対応",
+      self: content.pain_and_loose,
+    },
+    {
+      item: "得られる体験・変化",
+      insurance:
+        "費用を抑えながら、食事や会話の基本的な機能を取り戻すことにつながります",
+      self: content.experience,
+    },
+    {
+      item: "想定通院回数（レンジ）",
+      insurance: "3〜5回程度",
+      self: content.visits,
+    },
+    {
+      item: "費用（レンジ）",
+      insurance: "保険適用（1〜3割負担）",
+      self: content.cost,
+    },
+  ];
+
+  return (
+    <table className="cmp-table">
+      <colgroup>
+        <col style={{ width: TABLE_COL_WIDTHS.col1 }} />
+        <col style={{ width: TABLE_COL_WIDTHS.col2 }} />
+        <col style={{ width: TABLE_COL_WIDTHS.col3 }} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>項目</th>
+          <th>保険の入れ歯（レジン床）</th>
+          <th>
+            <span className="badge-rec">{badgeLabel}</span>
+            <br />
+            {firstCandidate}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.item}>
+            <td>{row.item}</td>
+            <td>{row.insurance}</td>
+            <td>{row.self}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ===== クラウン版 固定テキスト・判定テーブル =====
+
+const CROWN_CANDIDATES = {
+  FULL_ZIRCONIA: {
+    name: "フルジルコニア",
+    price: "95,000円（税込）",
+  },
+  EMAX: {
+    name: "e.max（ガラスセラミック）",
+    price: "100,000円（税込）",
+  },
+  ZIRCONIA_CERAMIC: {
+    name: "ジルコニアセラミック",
+    price: "145,000円（税込）",
+  },
+  GOLD: {
+    name: "ゴールド",
+    price: "180,000円（税込）",
+  },
+} as const;
+
+type CrownCandidate =
+  (typeof CROWN_CANDIDATES)[keyof typeof CROWN_CANDIDATES];
+
+const INSURANCE_TEXT_CROWN =
+  "保険の被せ物は、国の規則で使える素材や製作の工程が定められている、歯の基本的な機能を回復するためのものです。費用を抑えながら、しっかりとした治療を受けることができます。";
+
+const DISCLAIMER_CROWN =
+  "※本シートはAIが素材選びの一般的な情報を整理した目安です。治療内容・適合する素材の最終判断は、検査のうえ歯科医師が行います。";
+
+const NOTE_TEXTS_CROWN: Record<string, string> = {
+  core_note:
+    "※土台（コア）の作り直しが必要な場合は、別途1万〜1.5万円程度かかることがあります。",
+  gold_price_note:
+    "※ゴールドの価格は金の相場により変動します。お見積もり時にご確認ください。",
+  metal_free_only:
+    "※金属アレルギーのご申告があるため、今回は金属を使わない素材のみをご案内しています。",
+  doctor_check_bruxism:
+    "※歯ぎしり・食いしばりのご申告があります。素材の最終判断は歯科医師の確認が必要です。必要に応じて就寝時のマウスピース（ナイトガード）のご案内もできます。",
+};
+
+type CrownDecision = {
+  sheetMode: "careful" | "insurance_first" | "standard";
+  firstCandidate: string;
+  candidatePriceRange: string;
+  noteFlags: string[];
+};
+
+// 💡 クラウン版判定ロジック（Phase 2）
+function computeCrownDecision(f: CrownFormState): CrownDecision {
+  // P0: 痛み・違和感あり → 慎重モード（第一候補なし）
+  if (f.has_pain !== "特になし") {
+    return {
+      sheetMode: "careful",
+      firstCandidate: "",
+      candidatePriceRange: "",
+      noteFlags: [],
+    };
+  }
+
+  // core_note はクラウン版では全件に付す（土台の有無が未入力のため安全側）
+  const noteFlags: string[] = ["core_note"];
+
+  // P1: 金属アレルギー → 金属素材を候補・比較表から除外
+  const metalFreeOnly = f.metal_allergy !== "特になし";
+  if (metalFreeOnly) noteFlags.push("metal_free_only");
+
+  // P2: 歯ぎしり・食いしばり
+  if (f.bruxism !== "特になし") noteFlags.push("doctor_check_bruxism");
+
+  // cost_sensitivity = 費用は抑えたい → 保険ファースト
+  if (f.cost_sensitivity === "費用は抑えたい") {
+    return {
+      sheetMode: "insurance_first",
+      firstCandidate: "",
+      candidatePriceRange: "",
+      noteFlags,
+    };
+  }
+
+  let c: CrownCandidate;
+
+  if (f.target_site === "前歯（1〜3番）") {
+    if (f.chief_priority === "強度・長持ち") {
+      c = CROWN_CANDIDATES.ZIRCONIA_CERAMIC;
+    } else {
+      // 見た目の自然さ / 金属を避けたい
+      c = CROWN_CANDIDATES.EMAX;
+    }
+  } else if (f.target_site === "小臼歯（4〜5番）") {
+    if (f.chief_priority === "見た目の自然さ") {
+      c = CROWN_CANDIDATES.EMAX;
+    } else {
+      // 強度・長持ち / 金属を避けたい
+      c = CROWN_CANDIDATES.FULL_ZIRCONIA;
+    }
+  } else {
+    // 大臼歯（6〜7番）
+    if (f.chief_priority === "見た目の自然さ") {
+      c = CROWN_CANDIDATES.ZIRCONIA_CERAMIC;
+    } else if (f.chief_priority === "金属を避けたい" || metalFreeOnly) {
+      c = CROWN_CANDIDATES.FULL_ZIRCONIA;
+    } else {
+      // 強度・長持ち
+      if (f.bruxism === "特になし") {
+        c = CROWN_CANDIDATES.GOLD;
+      } else {
+        c = CROWN_CANDIDATES.FULL_ZIRCONIA;
+      }
+    }
+  }
+
+  if (c === CROWN_CANDIDATES.GOLD) noteFlags.push("gold_price_note");
+
+  return {
+    sheetMode: "standard",
+    firstCandidate: c.name,
+    candidatePriceRange: c.price,
+    noteFlags,
+  };
+}
+
+// ===== クラウン版 コード固定比較表コンポーネント =====
+const CROWN_INSURANCE_ROWS: Record<
+  CrownFormState["target_site"],
+  Array<{
+    name: string;
+    appearance: string;
+    strength: string;
+    cost: string;
+    hygiene: string;
+    conditionalNote?: string;
+  }>
+> = {
+  "前歯（1〜3番）": [
+    {
+      name: "硬質レジン前歯冠",
+      appearance: "白いが経年で変色する傾向がある",
+      strength: "摩耗・変色が起こりやすい傾向がある",
+      cost: "3割負担で数千円程度",
+      hygiene: "表面に汚れがつきやすい傾向がある",
+    },
+  ],
+  "小臼歯（4〜5番）": [
+    {
+      name: "CAD/CAM冠（条件付き）",
+      appearance: "白い（単色）",
+      strength: "強い力で摩耗・破折する場合がある",
+      cost: "3割負担で数千円程度",
+      hygiene: "標準的",
+      conditionalNote: "※条件付き",
+    },
+  ],
+  "大臼歯（6〜7番）": [
+    {
+      name: "CAD/CAM冠（白い素材）",
+      appearance: "白い（単色）",
+      strength: "強い力で摩耗・破折する場合がある",
+      cost: "3割負担で数千円程度",
+      hygiene: "標準的",
+    },
+    {
+      name: "金属冠（銀歯）",
+      appearance: "金属色（銀色）",
+      strength: "高い（割れにくい）",
+      cost: "3割負担で数千円程度",
+      hygiene: "経年で適合が低下する場合がある",
+    },
+  ],
+};
+
+const CROWN_SELF_ROWS = [
+  {
+    key: "FULL_ZIRCONIA",
+    name: CROWN_CANDIDATES.FULL_ZIRCONIA.name,
+    appearance: "白い。奥歯でも自然な色合いに仕上がりやすい",
+    strength: "硬く、割れにくい素材。咬む力が強い方にも選ばれやすい",
+    cost: CROWN_CANDIDATES.FULL_ZIRCONIA.price,
+    hygiene: "表面に汚れがつきにくく、お手入れがしやすい傾向がある",
+  },
+  {
+    key: "EMAX",
+    name: CROWN_CANDIDATES.EMAX.name,
+    appearance: "光の透け方が自然で、前歯に近い仕上がりになりやすい",
+    strength: "適度な強度。前歯・小臼歯向け",
+    cost: CROWN_CANDIDATES.EMAX.price,
+    hygiene: "滑らかな表面で、汚れがつきにくい傾向がある",
+  },
+  {
+    key: "ZIRCONIA_CERAMIC",
+    name: CROWN_CANDIDATES.ZIRCONIA_CERAMIC.name,
+    appearance: "白さと透明感のバランス。自然な歯のような仕上がり",
+    strength: "強度と審美性のバランスが取れた素材",
+    cost: CROWN_CANDIDATES.ZIRCONIA_CERAMIC.price,
+    hygiene: "表面が滑らかで、お手入れがしやすい傾向がある",
+  },
+  {
+    key: "GOLD",
+    name: CROWN_CANDIDATES.GOLD.name,
+    appearance: "金属色（金色）",
+    strength: "適合性が高く、長期的に安定しやすい",
+    cost: CROWN_CANDIDATES.GOLD.price,
+    hygiene: "表面が滑らかで、細菌の付着が少ない傾向がある",
+  },
+];
+
+const CROWN_TABLE_COL_WIDTHS = {
+  col1: "18%",
+  col2: "20%",
+  col3: "20%",
+  col4: "22%",
+  col5: "20%",
+};
+
+function CrownComparisonTable({
+  firstCandidate,
+  sheetMode,
+  targetSite,
+  metalFreeOnly,
+}: {
+  firstCandidate: string;
+  sheetMode: CrownDecision["sheetMode"];
+  targetSite: CrownFormState["target_site"];
+  metalFreeOnly: boolean;
+}) {
+  const insuranceRows = CROWN_INSURANCE_ROWS[targetSite].filter(
+    (r) => !metalFreeOnly || r.name !== "金属冠（銀歯）",
+  );
+  const selfRows = CROWN_SELF_ROWS.filter(
+    (r) => !metalFreeOnly || r.key !== "GOLD",
+  );
+
+  const headerLabels = [
+    "項目",
+    "見た目",
+    "強度・耐久性",
+    "1本あたり費用（目安）",
+    "予防・衛生面",
+  ];
+
+  return (
+    <table className="cmp-table">
+      <colgroup>
+        <col style={{ width: CROWN_TABLE_COL_WIDTHS.col1 }} />
+        <col style={{ width: CROWN_TABLE_COL_WIDTHS.col2 }} />
+        <col style={{ width: CROWN_TABLE_COL_WIDTHS.col3 }} />
+        <col style={{ width: CROWN_TABLE_COL_WIDTHS.col4 }} />
+        <col style={{ width: CROWN_TABLE_COL_WIDTHS.col5 }} />
+      </colgroup>
+      <thead>
+        <tr>
+          {headerLabels.map((h) => (
+            <th key={h}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {insuranceRows.map((row) => (
+          <tr key={row.name}>
+            <td>
+              {sheetMode === "insurance_first" && (
+                <span className="badge-rec">参考候補</span>
+              )}
+              {sheetMode === "insurance_first" && <br />}
+              {row.name}
+              {row.conditionalNote && (
+                <span className="block text-[10px] text-ink-soft mt-1">
+                  {row.conditionalNote}
+                </span>
+              )}
+            </td>
+            <td>{row.appearance}</td>
+            <td>{row.strength}</td>
+            <td>{row.cost}</td>
+            <td>{row.hygiene}</td>
+          </tr>
+        ))}
+        {selfRows.map((row) => {
+          const isFirst = firstCandidate === row.name;
+          return (
+            <tr key={row.name} className={isFirst ? "bg-accent-tint/30" : ""}>
+              <td>
+                {isFirst && <span className="badge-rec">第一候補</span>}
+                {isFirst && <br />}
+                {row.name}
+              </td>
+              <td>{row.appearance}</td>
+              <td>{row.strength}</td>
+              <td>{row.cost}</td>
+              <td>{row.hygiene}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 // 💡 エラーの日本語化分類（ユーザーには「見出し＋行動」、サポートには「スクショで読める診断行」を見せる）
 type ClassifiedError = {
   kind: "congestion" | "timeout" | "config" | "network" | "other";
@@ -449,6 +983,565 @@ function classifyError(raw: string): ClassifiedError {
   };
 }
 
+// ===== 義歯版 入力フォームコンポーネント =====
+function DentureForm({
+  formData,
+  handleSelect,
+  handleMultiSelect,
+}: {
+  formData: FormState;
+  handleSelect: (key: string, value: string) => void;
+  handleMultiSelect: (
+    key: "current_denture_complaints" | "emotion_drivers" | "red_flag_words",
+    value: string,
+  ) => void;
+}) {
+  return (
+    <div className="text-xs">
+      {/* 1. 入れ歯の使用状況 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">01</span>
+          入れ歯の使用状況
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.denture_status.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("denture_status", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                formData.denture_status === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. 残っている歯 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">02</span>
+          残っている歯
+        </label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {FORM_DATA.remaining_teeth.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("remaining_teeth", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                formData.remaining_teeth === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. 対象の顎 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">03</span>
+          対象の顎
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.target_jaw.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("target_jaw", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                formData.target_jaw === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 4. 欠損部位（総義歯扱いの場合は「該当なし（総義歯）」に固定される） */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">04</span>
+          欠損部位
+        </label>
+        <select
+          value={formData.defect_site}
+          onChange={(e) => handleSelect("defect_site", e.target.value)}
+          className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
+        >
+          {FORM_DATA.defect_site
+            .filter((d) =>
+              formData.remaining_teeth === "ほとんど無い" ||
+              formData.remaining_teeth === "1本もない（無歯顎）"
+                ? d === "該当なし（総義歯）"
+                : d !== "該当なし（総義歯）",
+            )
+            .map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+        </select>
+      </div>
+
+      {/* 5. 使用年数 & 6. 調整履歴 */}
+      <div className="grid grid-cols-2 gap-x-5 border-b border-line">
+        <div className="py-3.5">
+          <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+            <span className="font-serif-jp text-gold mr-1.5">05</span>
+            現義歯の使用年数
+          </label>
+          <select
+            value={formData.denture_duration}
+            onChange={(e) =>
+              handleSelect("denture_duration", e.target.value)
+            }
+            className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
+          >
+            {FORM_DATA.denture_duration
+              .filter((d) =>
+                formData.denture_status === "使っていない（初めて）"
+                  ? d === "該当なし（未使用者）"
+                  : d !== "該当なし（未使用者）",
+              )
+              .map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="py-3.5">
+          <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+            <span className="font-serif-jp text-gold mr-1.5">06</span>
+            調整・履歴
+          </label>
+          <select
+            value={formData.adjustment_history}
+            onChange={(e) =>
+              handleSelect("adjustment_history", e.target.value)
+            }
+            className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
+          >
+            {FORM_DATA.adjustment_history
+              .filter((h) =>
+                formData.denture_status === "使っていない（初めて）"
+                  ? h === "該当なし（未使用者）"
+                  : h !== "該当なし（未使用者）",
+              )
+              .map((h) => (
+                <option key={h} value={h}>
+                  {h}
+                </option>
+              ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 7. 口の乾き & 8. 顎堤・粘膜の状態 */}
+      <div className="grid grid-cols-2 gap-x-5 border-b border-line">
+        <div className="py-3.5">
+          <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+            <span className="font-serif-jp text-gold mr-1.5">07</span>
+            口の乾き・唾液
+          </label>
+          <select
+            value={formData.oral_dryness}
+            onChange={(e) => handleSelect("oral_dryness", e.target.value)}
+            className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
+          >
+            {FORM_DATA.oral_dryness.map((od) => (
+              <option key={od} value={od}>
+                {od}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="py-3.5">
+          <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+            <span className="font-serif-jp text-gold mr-1.5">08</span>
+            顎堤・粘膜の状態
+          </label>
+          <select
+            value={formData.ridge_mucosa}
+            onChange={(e) => handleSelect("ridge_mucosa", e.target.value)}
+            className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
+          >
+            {FORM_DATA.ridge_mucosa.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* 9. 期待値タイプ */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">09</span>
+          期待値タイプ
+        </label>
+        <select
+          value={formData.expectation_type}
+          onChange={(e) =>
+            handleSelect("expectation_type", e.target.value)
+          }
+          className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
+        >
+          {FORM_DATA.expectation_type.map((ex) => (
+            <option key={ex} value={ex}>
+              {ex}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* 10. 費用感度 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">10</span>
+          費用感度
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.cost_sensitivity.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("cost_sensitivity", item)}
+              className={`flex-1 py-2.5 px-1 min-h-[44px] rounded-lg border font-medium transition text-center text-[11px] ${
+                formData.cost_sensitivity === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 11. 現義歯の主な不満 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">11</span>
+          現義歯の主な不満（複数可）
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {FORM_DATA.current_denture_complaints.map((item) => {
+            const isActive =
+              formData.current_denture_complaints.includes(item);
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() =>
+                  handleMultiSelect("current_denture_complaints", item)
+                }
+                className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
+                  isActive
+                    ? "bg-accent-tint text-accent border-accent font-bold"
+                    : "bg-white text-ink border-line hover:border-accent"
+                }`}
+              >
+                {item}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 12. 追求したい情緒価値 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">12</span>
+          追求したい情緒価値（複数可）
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {FORM_DATA.emotion_drivers.map((item) => {
+            const isActive = formData.emotion_drivers.includes(item);
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => handleMultiSelect("emotion_drivers", item)}
+                className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
+                  isActive
+                    ? "bg-accent-tint text-accent border-accent font-bold"
+                    : "bg-white text-ink border-line hover:border-accent"
+                }`}
+              >
+                {item}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 13. 要注意ワード */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">13</span>
+          要注意ワード（慎重モード）
+        </label>
+        <div className="flex flex-wrap gap-1.5">
+          {FORM_DATA.red_flag_words.map((item) => {
+            const isActive = formData.red_flag_words.includes(item);
+            const isRose = item !== "特になし";
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => handleMultiSelect("red_flag_words", item)}
+                className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
+                  isActive
+                    ? isRose
+                      ? "bg-rose-50 text-rose-700 border-rose-600 font-bold shadow-sm"
+                      : "bg-accent-tint text-accent border-accent font-bold"
+                    : "bg-white text-ink border-line hover:border-accent"
+                }`}
+              >
+                {item}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 14. 現場メモ */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">14</span>
+          現場メモ（任意）
+        </label>
+        <input
+          type="text"
+          value={formData.free_memo}
+          onChange={(e) =>
+            handleSelect("free_memo", e.target.value)
+          }
+          placeholder="家族の同席希望、持病など"
+          className="w-full p-2.5 border border-line rounded-lg bg-white text-base shadow-xs focus:border-accent focus:outline-none transition"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ===== クラウン版 入力フォームコンポーネント =====
+function CrownForm({
+  formData,
+  handleSelect,
+}: {
+  formData: CrownFormState;
+  handleSelect: (key: string, value: string) => void;
+}) {
+  return (
+    <div className="text-xs space-y-0">
+      {/* 1. 被せ物の部位 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">01</span>
+          被せ物の部位
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.crown_target_site.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("target_site", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center text-xs ${
+                formData.target_site === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. 笑ったときの見え方 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">02</span>
+          笑ったときの見え方
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.crown_visibility.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("visibility", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center text-xs ${
+                formData.visibility === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. 患者さまが重視していること */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">03</span>
+          患者さまが重視していること
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.crown_chief_priority.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("chief_priority", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center text-xs ${
+                formData.chief_priority === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 4. 金属アレルギーの有無 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">04</span>
+          金属アレルギーの有無
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.crown_metal_allergy.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("metal_allergy", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                formData.metal_allergy === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 5. 歯ぎしり・食いしばり */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">05</span>
+          歯ぎしり・食いしばり
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.crown_bruxism.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("bruxism", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                formData.bruxism === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 6. 痛み・違和感の有無（慎重モード） */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">06</span>
+          痛み・違和感の有無（慎重モード）
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.crown_has_pain.map((item) => {
+            const isRose = item === "あり";
+            const isActive = formData.has_pain === item;
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => handleSelect("has_pain", item)}
+                className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                  isActive
+                    ? isRose
+                      ? "bg-rose-50 text-rose-700 border-rose-600 font-bold shadow-sm"
+                      : "bg-accent-tint text-accent border-accent font-bold"
+                    : "bg-white text-ink border-line hover:border-accent"
+                }`}
+              >
+                {item}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 7. 費用へのご意向 */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">07</span>
+          費用へのご意向
+        </label>
+        <div className="flex gap-1.5">
+          {FORM_DATA.crown_cost_sensitivity.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => handleSelect("cost_sensitivity", item)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                formData.cost_sensitivity === item
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 8. 現場メモ */}
+      <div className="py-3.5 border-b border-line">
+        <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+          <span className="font-serif-jp text-gold mr-1.5">08</span>
+          現場メモ（任意）
+        </label>
+        <input
+          type="text"
+          value={formData.free_memo}
+          onChange={(e) => handleSelect("free_memo", e.target.value)}
+          placeholder="患者様のご希望・気になる点など（患者情報は入れない）"
+          className="w-full p-2.5 border border-line rounded-lg bg-white text-base shadow-xs focus:border-accent focus:outline-none transition"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function Page() {
   const [mounted, setMounted] = useState(false);
 
@@ -488,7 +1581,7 @@ export default function Page() {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[BUILD] 2026-08-30 decision-table-v1.1-render-fix");
+    console.log("[BUILD] 2026-08-31 crown-mode-phase2");
 
     // 1. ?t= パラメータまたは localStorage からトークンをロード
     const urlParams = new URLSearchParams(window.location.search);
@@ -634,33 +1727,53 @@ export default function Page() {
     setResult(null);
 
     // 💡 判定テーブルで候補・価格・換算・フラグを確定（AIには結果のみ渡す）
-    const decision = computeDecision(formData);
+    const decision =
+      formData.mode === "crown"
+        ? computeCrownDecision(formData as CrownFormState)
+        : computeDecision(formData);
 
-    const payload = {
-      denture_status: formData.denture_status,
-      remaining_teeth: formData.remaining_teeth,
-      target_jaw: formData.target_jaw,
-      defect_site: formData.defect_site,
-      current_denture_complaints:
-        formData.current_denture_complaints.join(", "),
-      denture_duration: formData.denture_duration,
-      adjustment_history: formData.adjustment_history,
-      oral_dryness: formData.oral_dryness,
-      ridge_mucosa: formData.ridge_mucosa,
-      emotion_drivers: formData.emotion_drivers.join(", "),
-      expectation_type: formData.expectation_type,
-      cost_sensitivity: formData.cost_sensitivity,
-      red_flag_words: formData.red_flag_words.join(", "),
+    const basePayload = {
+      mode: formData.mode,
       free_memo: formData.free_memo || "特になし",
       sheet_mode: decision.sheetMode,
       first_candidate: decision.firstCandidate,
       candidate_price_range: decision.candidatePriceRange,
-      price_per_day: decision.pricePerDay,
       note_flags:
         decision.noteFlags.length > 0 ? decision.noteFlags.join(", ") : "なし",
       staffName: staffName.trim(), // 👈 レポートの「担当」欄用（/api/counseling 側で [[STAFF_NAME]] をこの値に置換する）
       token: token, // 👈 医院特定用（usage_logs の clinic_id を動的化するため）
     };
+
+    const payload =
+      formData.mode === "crown"
+        ? {
+            ...basePayload,
+            target_site: formData.target_site,
+            visibility: formData.visibility,
+            chief_priority: formData.chief_priority,
+            metal_allergy: formData.metal_allergy,
+            bruxism: formData.bruxism,
+            has_pain: formData.has_pain,
+            cost_sensitivity: formData.cost_sensitivity,
+          }
+        : {
+            ...basePayload,
+            denture_status: formData.denture_status,
+            remaining_teeth: formData.remaining_teeth,
+            target_jaw: formData.target_jaw,
+            defect_site: formData.defect_site,
+            current_denture_complaints:
+              formData.current_denture_complaints.join(", "),
+            denture_duration: formData.denture_duration,
+            adjustment_history: formData.adjustment_history,
+            oral_dryness: formData.oral_dryness,
+            ridge_mucosa: formData.ridge_mucosa,
+            emotion_drivers: formData.emotion_drivers.join(", "),
+            expectation_type: formData.expectation_type,
+            cost_sensitivity: formData.cost_sensitivity,
+            red_flag_words: formData.red_flag_words.join(", "),
+            price_per_day: (decision as Decision).pricePerDay,
+          };
 
     try {
       const res = await fetch("/api/counseling", {
@@ -820,7 +1933,13 @@ export default function Page() {
 
   const cleanClinicName = clinicName.replace(/様$/, "");
 
-  // 💡 カンペが新フォーマット（【キーワード】併記）かどうか。旧形式の生���結果では切替ボタン自体を出さない
+  // 💡 判定結果はレンダリング・崩れ検知の両方で使うためここで確定
+  const decision =
+    formData.mode === "crown"
+      ? computeCrownDecision(formData as CrownFormState)
+      : computeDecision(formData);
+
+  // 💡 カンペが新フォーマット（【キーワード】併記）かどうか。旧形式の生成結果では切替ボタン自体を出さない
   const talkKeywordAvailable = result
     ? result.talkScript.includes("【キーワード】")
     : false;
@@ -829,11 +1948,14 @@ export default function Page() {
   const resultSuspicious = (() => {
     if (!result) return false;
     const talkBroken = !result.talkScript || !result.talkScript.includes("■");
-    // 💡 慎重モード（要注意ワードが選択されている）では比較表を出さないのが正しい動作のため、表の欠落は異常とみなさない
-    const cautiousInput = computeDecision(formData).sheetMode === "cautious";
-    const sheet = parsePatientSheet(result.patientSheet);
+    // 💡 慎重モード（要注意ワードが選択されている／痛み・違和感あり）では比較表を出さないのが正しい動作のため、表の欠落は異常とみなさない
+    const carefulInput =
+      decision.sheetMode === "cautious" || decision.sheetMode === "careful";
+    // 💡 Phase1: 比較表はコード固定で表示するため、AI出力に <table> が含まれていなくても異常ではない
+    //    crown の insurance_first も比較表を出すため、firstCandidate が空でも異常ではない
     const tableMissing =
-      !cautiousInput && !sheet.sections.some((s) => s.body.includes("<table"));
+      (decision.sheetMode === "normal" || decision.sheetMode === "standard") &&
+      !decision.firstCandidate;
     return talkBroken || tableMissing;
   })();
 
@@ -882,6 +2004,499 @@ export default function Page() {
       </div>
     </div>
   );
+
+  // ===== 義歯版 A4患者シートコンポーネント =====
+  const DenturePatientSheet = () => {
+    const d = decision as Decision;
+    const sheet = parsePatientSheet(result!.patientSheet);
+    const intro = sheet.sections.find((s) => s.heading.includes("悩み"));
+    // 💡 慎重モードでは「知っておいていただきたいこと」がこの枠に入る（比較表・おすすめを出さない代わりの本文セクション）
+    // 💡 insurance_firstモードの見出しは「次の一歩の参考」になるため振り分けに含める
+    const recommend = sheet.sections.find(
+      (s) =>
+        s.heading.includes("おすすめ") ||
+        s.heading.includes("知っておいて") ||
+        s.heading.includes("次の一歩"),
+    );
+    const tableSection = sheet.sections.find((s) => s.body.includes("<table"));
+    // 💡 慎重モードでは「次のステップについて」がこの枠に入る（2ページ目の描画条件を満たす役割も兼ねる）
+    const prosCons = sheet.sections.find(
+      (s) =>
+        s.heading.includes("良い点") ||
+        s.heading.includes("注意点") ||
+        s.heading.includes("次のステップ"),
+    );
+    const costSection = sheet.sections.find((s) =>
+      s.heading.includes("費用"),
+    );
+    // 💡 「ご家族向けのまとめ」はどの枠にも合致せず非表示になっていたため追加（2026-08-30 修正）
+    const familySection = sheet.sections.find((s) =>
+      s.heading.includes("ご家族"),
+    );
+
+    // 💡 シートのタイトルはモデル出力を使わずフロントで固定する（2026-08-27 確定仕様）。
+    //    慎重モードは「比較」を行わないため、実態に合わせてタイトルを分岐する。
+    const isCarefulMode = d.sheetMode === "cautious";
+    const sheetTitle = isCarefulMode
+      ? "【AI客観分析レポート】ご希望の整理と次のステップ"
+      : "【AI客観分析レポート】お口の治療選択肢の比較";
+
+    // 💡 セクション見出し（デザイン刷新案A）: 明朝体＋小さな色面マーカー＋下罫線。アイコン・青バーは廃止
+    const SectionHead = ({
+      children,
+      gold,
+      bare,
+    }: {
+      children: React.ReactNode;
+      gold?: boolean;
+      bare?: boolean;
+    }) => (
+      <div
+        className={`flex items-center gap-2 ${bare ? "mb-2" : "border-b border-line pb-1.5 mb-2.5"}`}
+      >
+        <span
+          className={`inline-block h-3 w-3 shrink-0 ${gold ? "bg-gold" : "bg-accent"}`}
+        />
+        <span className="font-serif-jp text-[15px] font-bold text-ink tracking-wide">
+          {children}
+        </span>
+      </div>
+    );
+
+    // Phase 1: 費用ブロックに挿入する注記を組み立てる
+    const costNotes = [
+      ...(d.noteFlags.includes("cost_conscious")
+        ? [NOTE_TEXTS_DENTURE.cost_conscious]
+        : []),
+      COST_NOTE_DENTURE,
+      ...(d.noteFlags.includes("both_jaws_double")
+        ? [NOTE_TEXTS_DENTURE.both_jaws_double]
+        : []),
+    ];
+
+    // Phase 1: 一般注記ブロックに表示する注記（費用ブロック用は除外）
+    const displayNoteFlags = d.noteFlags.filter(
+      (flag) => flag !== "cost_conscious" && flag !== "both_jaws_double",
+    );
+    const noteItems = displayNoteFlags
+      .map((flag) => NOTE_TEXTS_DENTURE[flag])
+      .filter((text): text is string => !!text);
+
+    const Header = () => (
+      <div className="flex items-end justify-between gap-6 border-b-[1.5px] border-b-ink pb-3 mb-5">
+        <div>
+          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
+            {sheetTitle}
+          </h1>
+          <div className="text-[8px] tracking-[0.3em] text-accent font-bold mt-1">
+            AI OBJECTIVE ANALYSIS
+          </div>
+        </div>
+        <div className="text-right text-[10.5px] leading-relaxed shrink-0 text-ink-soft">
+          {cleanClinicName && (
+            <div className="font-bold text-ink text-[11px]">{cleanClinicName}</div>
+          )}
+          <div className="text-[9px] mt-0.5 space-y-0.5">
+            {sheet.issueLine
+              .replace(/:\s*/g, ":")
+              .split(/[ \s]+/)
+              .filter(Boolean)
+              .map((item, index) => (
+                <div key={index}>{item}</div>
+              ))}
+          </div>
+        </div>
+      </div>
+    );
+
+    const Footer = () => (
+      <div className="mt-auto border-t border-line pt-2 text-center text-[10px] text-ink-soft leading-relaxed">
+        {DISCLAIMER_DENTURE}
+      </div>
+    );
+
+    // 💡 比較表がないシート（慎重モード）は内容が1ページに収まるため単ページで描画する（2ページ目が余白だらけになるのを防ぐ）
+    //    Phase1: 比較表はコード固定で表示するため、AI出力の tableSection 有無では判定しない
+    const singlePageSheet = isCarefulMode;
+
+    return (
+      <>
+        {/* PAGE 1 */}
+        <A4PageWrapper isLast={singlePageSheet}>
+          <Header />
+          {intro && (
+            <div
+              className="text-[13px] leading-[2] text-ink mb-5"
+              dangerouslySetInnerHTML={{
+                __html: renderInline(intro.body),
+              }}
+            />
+          )}
+          {recommend && (
+            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+              <SectionHead gold bare>
+                {stripEmoji(recommend.heading)}
+              </SectionHead>
+              <div
+                className="text-[13px] leading-[2] text-ink"
+                dangerouslySetInnerHTML={{
+                  __html: renderInline(recommend.body),
+                }}
+              />
+            </div>
+          )}
+          {/* Phase 1: 保険説明はコード固定文を必ず表示 */}
+          {!isCarefulMode && (
+            <div className="text-[13px] leading-[2] text-ink mb-5">
+              {INSURANCE_TEXT_DENTURE}
+            </div>
+          )}
+          {/* Phase 1: 比較表はAI出力に依存せずコード固定コンポーネントでレンダリング */}
+          {!isCarefulMode && d.firstCandidate && (
+            <div className="mb-5">
+              <SectionHead>選択肢の比較</SectionHead>
+              <DentureComparisonTable
+                firstCandidate={d.firstCandidate}
+                sheetMode={d.sheetMode}
+              />
+            </div>
+          )}
+          {/* Phase 1: 注記フラグに対応する固定注記をコード側で表示 */}
+          {!isCarefulMode && noteItems.length > 0 && (
+            <div className="mb-5">
+              <SectionHead>注記</SectionHead>
+              <ul className="list-disc pl-5 text-[13px] leading-[2] text-ink space-y-1">
+                {noteItems.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {singlePageSheet && prosCons && (
+            <div className="mb-5">
+              <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+              <div
+                className="text-[13px] leading-[2] text-ink"
+                dangerouslySetInnerHTML={{
+                  __html: renderInline(prosCons.body),
+                }}
+              />
+            </div>
+          )}
+          <Footer />
+        </A4PageWrapper>
+
+        {/* PAGE 2 */}
+        {!singlePageSheet && (prosCons || costSection || familySection) && (
+          <A4PageWrapper isLast>
+            <Header />
+            <div className="grid grid-cols-1 gap-6">
+              {prosCons && (
+                <div>
+                  <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+                  <div
+                    className="text-[13px] leading-[2] text-ink"
+                    dangerouslySetInnerHTML={{
+                      __html: renderInline(prosCons.body),
+                    }}
+                  />
+                </div>
+              )}
+              {costSection && (
+                <div>
+                  <SectionHead gold>{stripEmoji(costSection.heading)}</SectionHead>
+                  <div className="border border-line px-5 py-4">
+                    <div
+                      className="text-[13px] leading-[2] text-ink"
+                      dangerouslySetInnerHTML={{
+                        __html: renderInline(costSection.body),
+                      }}
+                    />
+                    {/* Phase 1: 費用ブロック末尾に固定の費用注記・両顎注記を、冒頭には費用重視注記を表示 */}
+                    {costNotes.length > 0 && (
+                      <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
+                        {costNotes.map((note, i) => (
+                          <p key={i}>{note}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {familySection && (
+                <div>
+                  <SectionHead>{stripEmoji(familySection.heading)}</SectionHead>
+                  <div
+                    className="text-[13px] leading-[2] text-ink"
+                    dangerouslySetInnerHTML={{
+                      __html: renderInline(familySection.body),
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            <Footer />
+          </A4PageWrapper>
+        )}
+      </>
+    );
+  };
+
+  // ===== クラウン版 A4患者シートコンポーネント =====
+  const CrownPatientSheet = () => {
+    const d = decision as CrownDecision;
+    const sheet = parsePatientSheet(result!.patientSheet);
+
+    // 💡 careful モードと通常モードで抽出する見出しを分ける
+    const intro = sheet.sections.find(
+      (s) => s.heading.includes("悩み") || s.heading.includes("お気持ち"),
+    );
+    const recommend = sheet.sections.find(
+      (s) =>
+        s.heading.includes("おすすめ") ||
+        s.heading.includes("知っておいて") ||
+        s.heading.includes("次の一歩"),
+    );
+    const prosCons = sheet.sections.find(
+      (s) =>
+        s.heading.includes("良い点") ||
+        s.heading.includes("注意点") ||
+        s.heading.includes("次のステップ"),
+    );
+    const costSection = sheet.sections.find((s) => s.heading.includes("費用"));
+
+    // 💡 careful モードの4ブロックをすべて拾う（find では後半が落ちるため filter）
+    const careSections = sheet.sections.filter(
+      (s) =>
+        s.heading.includes("お気持ち") ||
+        s.heading.includes("検査") ||
+        s.heading.includes("理由") ||
+        s.heading.includes("流れ") ||
+        s.heading.includes("素材選び") ||
+        s.heading.includes("後回し"),
+    );
+
+    const isCarefulMode = d.sheetMode === "careful";
+    const sheetTitle = isCarefulMode
+      ? "【AI客観分析レポート】ご希望の整理と次のステップ"
+      : "【AI客観分析レポート】被せ物素材の比較";
+
+    const SectionHead = ({
+      children,
+      gold,
+      bare,
+    }: {
+      children: React.ReactNode;
+      gold?: boolean;
+      bare?: boolean;
+    }) => (
+      <div
+        className={`flex items-center gap-2 ${bare ? "mb-2" : "border-b border-line pb-1.5 mb-2.5"}`}
+      >
+        <span
+          className={`inline-block h-3 w-3 shrink-0 ${gold ? "bg-gold" : "bg-accent"}`}
+        />
+        <span className="font-serif-jp text-[15px] font-bold text-ink tracking-wide">
+          {children}
+        </span>
+      </div>
+    );
+
+    const noteItems = d.noteFlags
+      .map((flag) => NOTE_TEXTS_CROWN[flag])
+      .filter((text): text is string => !!text);
+
+    // 💡 ヘッダー情報はプレースホルダではなくコード側で確定（義歯版と同じ構成）
+    const issueDate = new Date().toLocaleDateString("ja-JP", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "Asia/Tokyo",
+    });
+
+    const Header = () => (
+      <div className="flex items-end justify-between gap-6 border-b-[1.5px] border-b-ink pb-3 mb-5">
+        <div>
+          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
+            {sheetTitle}
+          </h1>
+          <div className="text-[8px] tracking-[0.3em] text-accent font-bold mt-1">
+            AI OBJECTIVE ANALYSIS
+          </div>
+        </div>
+        <div className="text-right text-[10.5px] leading-relaxed shrink-0 text-ink-soft">
+          {cleanClinicName && (
+            <div className="font-bold text-ink text-[11px]">
+              {cleanClinicName}
+            </div>
+          )}
+          <div className="text-[9px] mt-0.5 space-y-0.5">
+            <div>発行日: {issueDate}</div>
+            {staffName.trim() && <div>担当: {staffName.trim()}</div>}
+            {patientAnonId && <div>管理ID: {patientAnonId}</div>}
+          </div>
+        </div>
+      </div>
+    );
+
+    const Footer = () => (
+      <div className="mt-auto border-t border-line pt-2 text-center text-[10px] text-ink-soft leading-relaxed">
+        {DISCLAIMER_CROWN}
+      </div>
+    );
+
+    const singlePageSheet = isCarefulMode;
+    const f = formData as CrownFormState;
+
+    return (
+      <>
+        {/* PAGE 1 */}
+        <A4PageWrapper isLast={singlePageSheet}>
+          <Header />
+          {/* 💡 careful モードは一見して分かるバナーを表示 */}
+          {isCarefulMode && (
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-5 py-4 mb-5">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+                <h2 className="font-bold text-rose-800 text-[15px]">
+                  まずは検査をご案内しています
+                </h2>
+              </div>
+            </div>
+          )}
+          {isCarefulMode ? (
+            // 💡 careful モードは AI からの4ブロックをすべて強調表示
+            <div className="space-y-4 mb-5">
+              {careSections.map((s, i) => (
+                <div
+                  key={i}
+                  className="bg-tint border-l-[3px] border-l-gold px-5 py-4"
+                >
+                  <SectionHead gold bare>
+                    {stripEmoji(s.heading)}
+                  </SectionHead>
+                  <div
+                    className="text-[13px] leading-[2] text-ink"
+                    dangerouslySetInnerHTML={{
+                      __html: renderInline(s.body),
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {intro && (
+                <div
+                  className="text-[13px] leading-[2] text-ink mb-5"
+                  dangerouslySetInnerHTML={{
+                    __html: renderInline(intro.body),
+                  }}
+                />
+              )}
+              {recommend && (
+                <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+                  <SectionHead gold bare>
+                    {stripEmoji(recommend.heading)}
+                  </SectionHead>
+                  <div
+                    className="text-[13px] leading-[2] text-ink"
+                    dangerouslySetInnerHTML={{
+                      __html: renderInline(recommend.body),
+                    }}
+                  />
+                </div>
+              )}
+            </>
+          )}
+          {/* Phase 2: 保険説明はコード固定文を必ず表示 */}
+          {!isCarefulMode && (
+            <div className="text-[13px] leading-[2] text-ink mb-5">
+              {INSURANCE_TEXT_CROWN}
+            </div>
+          )}
+          {/* Phase 2: 比較表はAI出力に依存せずコード固定コンポーネントでレンダリング */}
+          {!isCarefulMode && (
+            <div className="mb-5">
+              <SectionHead>選択肢の比較</SectionHead>
+              <CrownComparisonTable
+                firstCandidate={d.firstCandidate}
+                sheetMode={d.sheetMode}
+                targetSite={f.target_site}
+                metalFreeOnly={f.metal_allergy !== "特になし"}
+              />
+            </div>
+          )}
+          {/* Phase 2: 注記フラグに対応する固定注記をコード側で表示 */}
+          {!isCarefulMode && noteItems.length > 0 && (
+            <div className="mb-5">
+              <SectionHead>注記</SectionHead>
+              <ul className="list-disc pl-5 text-[13px] leading-[2] text-ink space-y-1">
+                {noteItems.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!isCarefulMode && singlePageSheet && prosCons && (
+            <div className="mb-5">
+              <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+              <div
+                className="text-[13px] leading-[2] text-ink"
+                dangerouslySetInnerHTML={{
+                  __html: renderInline(prosCons.body),
+                }}
+              />
+            </div>
+          )}
+          <Footer />
+        </A4PageWrapper>
+
+        {/* PAGE 2 */}
+        {!singlePageSheet && (prosCons || costSection) && (
+          <A4PageWrapper isLast>
+            <Header />
+            <div className="grid grid-cols-1 gap-6">
+              {!isCarefulMode && prosCons && (
+                <div>
+                  <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+                  <div
+                    className="text-[13px] leading-[2] text-ink"
+                    dangerouslySetInnerHTML={{
+                      __html: renderInline(prosCons.body),
+                    }}
+                  />
+                </div>
+              )}
+              {costSection && (
+                <div>
+                  <SectionHead gold>
+                    {stripEmoji(costSection.heading)}
+                  </SectionHead>
+                  <div className="border border-line px-5 py-4">
+                    <div
+                      className="text-[13px] leading-[2] text-ink"
+                      dangerouslySetInnerHTML={{
+                        __html: renderInline(costSection.body),
+                      }}
+                    />
+                    {noteItems.length > 0 && (
+                      <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
+                        {noteItems.map((note, i) => (
+                          <p key={i}>{note}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <Footer />
+          </A4PageWrapper>
+        )}
+      </>
+    );
+  };
 
   return (
     <main className="min-h-screen bg-bg font-sans text-ink">
@@ -1039,346 +2654,44 @@ export default function Page() {
             </h2>
           </div>
 
-          <div className="text-xs">
-            {/* 1. 入れ歯の使用状況 */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">01</span>
-                入れ歯の使用状況
-              </label>
-              <div className="flex gap-1.5">
-                {FORM_DATA.denture_status.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => handleSelect("denture_status", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
-                      formData.denture_status === item
-                        ? "bg-accent-tint text-accent border-accent font-bold"
-                        : "bg-white text-ink border-line hover:border-accent"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 2. 残っている歯 */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">02</span>
-                残っている歯
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {FORM_DATA.remaining_teeth.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => handleSelect("remaining_teeth", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
-                      formData.remaining_teeth === item
-                        ? "bg-accent-tint text-accent border-accent font-bold"
-                        : "bg-white text-ink border-line hover:border-accent"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 3. 対象の顎 */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">03</span>
-                対象の顎
-              </label>
-              <div className="flex gap-1.5">
-                {FORM_DATA.target_jaw.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => handleSelect("target_jaw", item)}
-                    className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
-                      formData.target_jaw === item
-                        ? "bg-accent-tint text-accent border-accent font-bold"
-                        : "bg-white text-ink border-line hover:border-accent"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 4. 欠損部位（総義歯扱いの場合は「該当なし（総義歯）」に固定される） */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">04</span>
-                欠損部位
-              </label>
-              <select
-                value={formData.defect_site}
-                onChange={(e) => handleSelect("defect_site", e.target.value)}
-                className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
-              >
-                {FORM_DATA.defect_site
-                  .filter((d) =>
-                    formData.remaining_teeth === "ほとんど無い" ||
-                    formData.remaining_teeth === "1本もない（無歯顎）"
-                      ? d === "該当なし（総義歯）"
-                      : d !== "該当なし（総義歯）",
-                  )
-                  .map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-              </select>
-            </div>
-
-            {/* 5. 使用年数 & 6. 調整履歴 */}
-            <div className="grid grid-cols-2 gap-x-5 border-b border-line">
-              <div className="py-3.5">
-                <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                  <span className="font-serif-jp text-gold mr-1.5">05</span>
-                  現義歯の使用年数
-                </label>
-                <select
-                  value={formData.denture_duration}
-                  onChange={(e) =>
-                    handleSelect("denture_duration", e.target.value)
-                  }
-                  className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
-                >
-                  {FORM_DATA.denture_duration
-                    .filter((d) =>
-                      formData.denture_status === "使っていない（初めて）"
-                        ? d === "該当なし（未使用者）"
-                        : d !== "該当なし（未使用者）",
-                    )
-                    .map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <div className="py-3.5">
-                <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                  <span className="font-serif-jp text-gold mr-1.5">06</span>
-                  調整・履歴
-                </label>
-                <select
-                  value={formData.adjustment_history}
-                  onChange={(e) =>
-                    handleSelect("adjustment_history", e.target.value)
-                  }
-                  className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
-                >
-                  {FORM_DATA.adjustment_history
-                    .filter((h) =>
-                      formData.denture_status === "使っていない（初めて）"
-                        ? h === "該当なし（未使用者）"
-                        : h !== "該当なし（未使用者）",
-                    )
-                    .map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            </div>
-
-            {/* 7. 口の乾き & 8. 顎堤・粘膜の状態 */}
-            <div className="grid grid-cols-2 gap-x-5 border-b border-line">
-              <div className="py-3.5">
-                <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                  <span className="font-serif-jp text-gold mr-1.5">07</span>
-                  口の乾き・唾液
-                </label>
-                <select
-                  value={formData.oral_dryness}
-                  onChange={(e) => handleSelect("oral_dryness", e.target.value)}
-                  className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
-                >
-                  {FORM_DATA.oral_dryness.map((od) => (
-                    <option key={od} value={od}>
-                      {od}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="py-3.5">
-                <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                  <span className="font-serif-jp text-gold mr-1.5">08</span>
-                  顎堤・粘膜の状態
-                </label>
-                <select
-                  value={formData.ridge_mucosa}
-                  onChange={(e) => handleSelect("ridge_mucosa", e.target.value)}
-                  className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
-                >
-                  {FORM_DATA.ridge_mucosa.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* 9. 期待値タイプ */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">09</span>
-                期待値タイプ
-              </label>
-              <select
-                value={formData.expectation_type}
-                onChange={(e) =>
-                  handleSelect("expectation_type", e.target.value)
-                }
-                className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
-              >
-                {FORM_DATA.expectation_type.map((ex) => (
-                  <option key={ex} value={ex}>
-                    {ex}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* 10. 費用感度 */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">10</span>
-                費用感度
-              </label>
-              <div className="flex gap-1.5">
-                {FORM_DATA.cost_sensitivity.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => handleSelect("cost_sensitivity", item)}
-                    className={`flex-1 py-2.5 px-1 min-h-[44px] rounded-lg border font-medium transition text-center text-[11px] ${
-                      formData.cost_sensitivity === item
-                        ? "bg-accent-tint text-accent border-accent font-bold"
-                        : "bg-white text-ink border-line hover:border-accent"
-                    }`}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 11. 現義歯の主な不満 */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">11</span>
-                現義歯の主な不満（複数可）
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {FORM_DATA.current_denture_complaints.map((item) => {
-                  const isActive =
-                    formData.current_denture_complaints.includes(item);
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() =>
-                        handleMultiSelect("current_denture_complaints", item)
-                      }
-                      className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
-                        isActive
-                          ? "bg-accent-tint text-accent border-accent font-bold"
-                          : "bg-white text-ink border-line hover:border-accent"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 12. 追求したい情緒価値 */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">12</span>
-                追求したい情緒価値（複数可）
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {FORM_DATA.emotion_drivers.map((item) => {
-                  const isActive = formData.emotion_drivers.includes(item);
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => handleMultiSelect("emotion_drivers", item)}
-                      className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
-                        isActive
-                          ? "bg-accent-tint text-accent border-accent font-bold"
-                          : "bg-white text-ink border-line hover:border-accent"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 13. 要注意ワード */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">13</span>
-                要注意ワード（慎重モード）
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {FORM_DATA.red_flag_words.map((item) => {
-                  const isActive = formData.red_flag_words.includes(item);
-                  const isRose = item !== "特になし";
-                  return (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => handleMultiSelect("red_flag_words", item)}
-                      className={`py-2 px-3 min-h-[44px] rounded-md border text-xs transition ${
-                        isActive
-                          ? isRose
-                            ? "bg-rose-50 text-rose-700 border-rose-600 font-bold shadow-sm"
-                            : "bg-accent-tint text-accent border-accent font-bold"
-                          : "bg-white text-ink border-line hover:border-accent"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 14. 現場メモ */}
-            <div className="py-3.5 border-b border-line">
-              <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
-                <span className="font-serif-jp text-gold mr-1.5">14</span>
-                現場メモ（任意）
-              </label>
-              <input
-                type="text"
-                value={formData.free_memo}
-                onChange={(e) =>
-                  setFormData({ ...formData, free_memo: e.target.value })
-                }
-                placeholder="家族の同席希望、持病など"
-                className="w-full p-2.5 border border-line rounded-lg bg-white text-base shadow-xs focus:border-accent focus:outline-none transition"
-              />
-            </div>
+          {/* Phase 2: 義歯／クラウン モード切替タブ */}
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setFormData(INITIAL_FORM_DATA)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center text-sm ${
+                formData.mode === "denture"
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              入れ歯
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormData(INITIAL_CROWN_FORM_DATA)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center text-sm ${
+                formData.mode === "crown"
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              被せ物（β版）
+            </button>
           </div>
+
+          {formData.mode === "denture" ? (
+            <DentureForm
+              formData={formData}
+              handleSelect={handleSelect}
+              handleMultiSelect={handleMultiSelect}
+            />
+          ) : (
+            <CrownForm
+              formData={formData as CrownFormState}
+              handleSelect={handleSelect}
+            />
+          )}
 
           <button
             onClick={handleGenerate}
@@ -1395,6 +2708,16 @@ export default function Page() {
               </>
             )}
           </button>
+          {decision.sheetMode === "cautious" && (
+            <p className="no-print mt-2 text-xs text-rose-600 font-bold text-center">
+              要注意ワードがあるため、慎重モードで生成されます
+            </p>
+          )}
+          {decision.sheetMode === "careful" && (
+            <p className="no-print mt-2 text-xs text-rose-600 font-bold text-center">
+              痛みのご申告があるため、検査案内モードで生成されます
+            </p>
+          )}
           {!(token && clinicName) && (
             <p className="no-print mt-2 text-xs text-rose-600 font-bold text-center">
               ⚠️
@@ -1542,228 +2865,18 @@ export default function Page() {
                 className="flex-1 overflow-auto bg-bg p-4 rounded-xl border border-line flex flex-col items-center gap-6"
               >
                 {activeTab === "patient" &&
-                  (() => {
-                    const sheet = parsePatientSheet(result.patientSheet);
-                    const intro = sheet.sections.find((s) =>
-                      s.heading.includes("悩み"),
-                    );
-                    // 💡 慎重モードでは「知っておいていただきたいこと」がこの枠に入る（比較表・おすすめを出さない代わりの本文セクション）
-                    // 💡 insurance_firstモードの見出しは「次の一歩の参考」になるため振り分けに含める
-                    const recommend = sheet.sections.find(
-                      (s) =>
-                        s.heading.includes("おすすめ") ||
-                        s.heading.includes("知っておいて") ||
-                        s.heading.includes("次の一歩"),
-                    );
-                    const tableSection = sheet.sections.find((s) =>
-                      s.body.includes("<table"),
-                    );
-                    // 💡 慎重モードでは「次のステップについて」がこの枠に入る（2ページ目の描画条件を満たす役割も兼ねる）
-                    const prosCons = sheet.sections.find(
-                      (s) =>
-                        s.heading.includes("良い点") ||
-                        s.heading.includes("注意点") ||
-                        s.heading.includes("次のステップ"),
-                    );
-                    const costSection = sheet.sections.find((s) =>
-                      s.heading.includes("費用"),
-                    );
-                    // 💡 「ご家族向けのまとめ」はどの枠にも合致せず非表示になっていたため追加（2026-08-30 修正）
-                    const familySection = sheet.sections.find((s) =>
-                      s.heading.includes("ご家族"),
-                    );
-
-                    // 💡 シートのタイトルはモデル出力を使わずフロントで固定する（2026-08-27 確定仕様）。
-                    //    慎重モードは「比較」を行わないため、実態に合わせてタイトルを分岐する。
-                    //    判定は red_flag_words（「特になし」以外が1つでもあれば慎重モード）
-                    const isCarefulMode = formData.red_flag_words.some(
-                      (w) => w !== "特になし",
-                    );
-                    const sheetTitle = isCarefulMode
-                      ? "【AI客観分析レポート】ご希望の整理と次のステップ"
-                      : "【AI客観分析レポート】お口の治療選択肢の比較";
-
-                    // 💡 セクション見出し（デザイン刷新案A）: 明朝体＋小さな色面マーカー＋下罫線。アイコン・青バーは廃止
-                    const SectionHead = ({
-                      children,
-                      gold,
-                      bare,
-                    }: {
-                      children: React.ReactNode;
-                      gold?: boolean;
-                      bare?: boolean;
-                    }) => (
-                      <div
-                        className={`flex items-center gap-2 ${bare ? "mb-2" : "border-b border-line pb-1.5 mb-2.5"}`}
-                      >
-                        <span
-                          className={`inline-block h-3 w-3 shrink-0 ${gold ? "bg-gold" : "bg-accent"}`}
-                        />
-                        <span className="font-serif-jp text-[15px] font-bold text-ink tracking-wide">
-                          {children}
-                        </span>
-                      </div>
-                    );
-
-                    const Header = () => (
-                      <div className="flex items-end justify-between gap-6 border-b-[1.5px] border-b-ink pb-3 mb-5">
-                        <div>
-                          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
-                            {sheetTitle}
-                          </h1>
-                          <div className="text-[8px] tracking-[0.3em] text-accent font-bold mt-1">
-                            AI OBJECTIVE ANALYSIS
-                          </div>
-                        </div>
-                        <div className="text-right text-[10.5px] leading-relaxed shrink-0 text-ink-soft">
-                          {cleanClinicName && (
-                            <div className="font-bold text-ink text-[11px]">
-                              {cleanClinicName}
-                            </div>
-                          )}
-                          <div className="text-[9px] mt-0.5 space-y-0.5">
-                            {sheet.issueLine
-                              .replace(/:\s*/g, ":")
-                              .split(/[ \s]+/)
-                              .filter(Boolean)
-                              .map((item, index) => (
-                                <div key={index}>{item}</div>
-                              ))}
-                          </div>
-                        </div>
-                      </div>
-                    );
-
-                    const Footer = () => (
-                      <div className="mt-auto border-t border-line pt-2 text-center text-[10px] text-ink-soft leading-relaxed">
-                        {sheet.disclaimer}
-                      </div>
-                    );
-
-                    // 💡 比較表がないシート（慎重モード）は内容が1ページに収まるため単ページで描画する（2ページ目が余白だらけになるのを防ぐ）
-                    const singlePageSheet = !tableSection;
-
-                    return (
-                      <>
-                        {/* PAGE 1 */}
-                        <A4PageWrapper isLast={singlePageSheet}>
-                          <Header />
-                          {intro && (
-                            <div
-                              className="text-[13px] leading-[2] text-ink mb-5"
-                              dangerouslySetInnerHTML={{
-                                __html: renderInline(intro.body),
-                              }}
-                            />
-                          )}
-                          {recommend && (
-                            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
-                              <SectionHead gold bare>
-                                {stripEmoji(recommend.heading)}
-                              </SectionHead>
-                              <div
-                                className="text-[13px] leading-[2] text-ink"
-                                dangerouslySetInnerHTML={{
-                                  __html: renderInline(recommend.body),
-                                }}
-                              />
-                            </div>
-                          )}
-                          {tableSection && (
-                            <div className="mb-5">
-                              <SectionHead>
-                                {stripEmoji(tableSection.heading)}
-                              </SectionHead>
-                              {/* 💡 overflow-x-auto を除去：PDF生成（html-to-image）は @media print を読まず、
-                                overflow付き要素がスクロールコンテナ化してスクロールバーが画像に焼き付く上、
-                                flex内で高さが縮み内容が隠れる（自動縮小の計測も狂う）ため。table-layout:fixed のため除去しても横にはみ出さない */}
-                              <div
-                                dangerouslySetInnerHTML={{
-                                  __html: cleanTableHtml(tableSection.body),
-                                }}
-                              />
-                            </div>
-                          )}
-                          {singlePageSheet && prosCons && (
-                            <div className="mb-5">
-                              <SectionHead>
-                                {stripEmoji(prosCons.heading)}
-                              </SectionHead>
-                              <div
-                                className="text-[13px] leading-[2] text-ink"
-                                dangerouslySetInnerHTML={{
-                                  __html: renderInline(prosCons.body),
-                                }}
-                              />
-                            </div>
-                          )}
-                          <Footer />
-                        </A4PageWrapper>
-
-                        {/* PAGE 2 */}
-                        {!singlePageSheet &&
-                          (prosCons || costSection || familySection) && (
-                            <A4PageWrapper isLast>
-                              <Header />
-                              <div className="grid grid-cols-1 gap-6">
-                                {prosCons && (
-                                  <div>
-                                    <SectionHead>
-                                      {stripEmoji(prosCons.heading)}
-                                    </SectionHead>
-                                    <div
-                                      className="text-[13px] leading-[2] text-ink"
-                                      dangerouslySetInnerHTML={{
-                                        __html: renderInline(prosCons.body),
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                                {costSection && (
-                                  <div>
-                                    <SectionHead gold>
-                                      {stripEmoji(costSection.heading)}
-                                    </SectionHead>
-                                    <div className="border border-line px-5 py-4">
-                                      <div
-                                        className="text-[13px] leading-[2] text-ink"
-                                        dangerouslySetInnerHTML={{
-                                          __html: renderInline(
-                                            costSection.body,
-                                          ),
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                                {familySection && (
-                                  <div>
-                                    <SectionHead>
-                                      {stripEmoji(familySection.heading)}
-                                    </SectionHead>
-                                    <div
-                                      className="text-[13px] leading-[2] text-ink"
-                                      dangerouslySetInnerHTML={{
-                                        __html: renderInline(
-                                          familySection.body,
-                                        ),
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                              <Footer />
-                            </A4PageWrapper>
-                          )}
-                      </>
-                    );
-                  })()}
+                  (formData.mode === "denture" ? (
+                    <DenturePatientSheet />
+                  ) : (
+                    <CrownPatientSheet />
+                  ))}
 
                 {/* トークカンペ（要点⇄全文 切替対応） */}
                 {activeTab === "talk" &&
                   (() => {
-                    // 新フォーマット（【キーワード】あり）は要点・全文ともにカード表示。旧形式は従来のプレーン表示にフォールバック
+                    // 💡 マーカー文字列ではなく、パース結果のステップ配列の有無で表示判定（マーカーは API 側で除去済みのため）
                     const parsed = parseTalkKeywords(result.talkScript);
+                    if (!parsed || parsed.steps.length === 0) return null;
                     const kwData = talkView === "keyword" ? parsed : null;
                     return (
                       <div className="no-print bg-amber-50/80 p-5 rounded-xl border border-amber-200 w-full max-w-3xl">
