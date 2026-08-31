@@ -1474,7 +1474,7 @@ function CrownForm({
       <div className="py-3.5 border-b border-line">
         <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
           <span className="font-serif-jp text-gold mr-1.5">06</span>
-          痛み・違和感の有無（慎重モード）
+          痛み・違和感の有無（検査案内モード）
         </label>
         <div className="flex gap-1.5">
           {FORM_DATA.crown_has_pain.map((item) => {
