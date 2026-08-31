@@ -1470,7 +1470,7 @@ function CrownForm({
         </div>
       </div>
 
-      {/* 6. 痛み・違和感の有無（慎重モード） */}
+      {/* 6. 痛み・違和感の有無（検査案内モード） */}
       <div className="py-3.5 border-b border-line">
         <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
           <span className="font-serif-jp text-gold mr-1.5">06</span>
