@@ -52,14 +52,20 @@ const TracePanel = () => {
   const [expanded, setExpanded] = useState(false);
   if (steps.length === 0) return null;
   return (
-    <div className="fixed bottom-2 left-2 right-2 z-[9999] bg-red-600 text-white text-[11px] rounded-lg shadow-lg overflow-hidden">
+    <div className="fixed bottom-2 left-2 right-2 z-[9999] bg-gray-100 text-gray-500 text-[11px] rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
         className="w-full px-3 py-1.5 text-left font-bold flex items-center justify-between"
       >
-        <span>TRACE ({steps.length})</span>
-        <span>{expanded ? "−" : "＋"}</span>
+        {expanded ? (
+          <>
+            <span>DEBUG ({steps.length})</span>
+            <span>−</span>
+          </>
+        ) : (
+          <span>DEBUG</span>
+        )}
       </button>
       {expanded && (
         <div className="px-3 pb-2 overflow-auto max-h-[100px] space-y-0.5 break-all">
@@ -1993,6 +1999,7 @@ export default function Page() {
           issueDate: generatedIssueDate,
           formData: { ...formData },
         });
+        addTrace("S.sessionStorage保存完了");
       } else {
         showError("AI生成エラー: " + (data.error || "通信エラー"));
       }
@@ -2435,6 +2442,7 @@ export default function Page() {
         return;
       }
       addTrace("D2.fontsReady=true確認");
+      addTrace(`D2.5.measureRef存在=${measureRef.current ? "true" : "false"}`);
 
       if (!measureRef.current) {
         addTrace("D2b.measureRef未設定で終了");
