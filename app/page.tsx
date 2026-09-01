@@ -1722,14 +1722,15 @@ export default function Page() {
     }
   }, []);
 
-  // 💡 生成リクエスト開始から15秒経っても結果が表示されない場合、リセットボタンを表示
+  // 💡 生成リクエスト開始から30秒経っても結果が表示されない場合、リセットボタンを表示
   useEffect(() => {
     if (!generateStartedAt) return;
     if (result) {
       setGenerateStartedAt(null);
+      setShowReset(false);
       return;
     }
-    const timer = setTimeout(() => setShowReset(true), 15000);
+    const timer = setTimeout(() => setShowReset(true), 30000);
     return () => clearTimeout(timer);
   }, [generateStartedAt, result]);
 
@@ -1815,6 +1816,7 @@ export default function Page() {
       return;
     }
     setLoading(true);
+    setShowReset(false);
     setGenerateStartedAt(Date.now());
     showError(null);
     setResult(null);
@@ -1871,7 +1873,7 @@ export default function Page() {
           };
 
     const controller = new AbortController();
-    const fetchTimeout = setTimeout(() => controller.abort(), 30000);
+    const fetchTimeout = setTimeout(() => controller.abort(), 45000);
 
     try {
       const res = await fetch("/api/counseling", {
