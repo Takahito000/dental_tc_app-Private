@@ -16,10 +16,13 @@ const BODY_TEMPLATE = `AI客観分析レポートのPDFを添付でお送りし�
 ※このメールはデンピストAIの送信ボタン操作により送信されました。`;
 
 export async function POST(req: Request) {
+  let pdfData = "";
+  let toEmail = "";
+
   try {
     const body = await req.json();
     const {
-      pdfData,
+      pdfData: rawPdfData,
       accessToken,
       fileName,
       patientAnonId,
@@ -31,6 +34,8 @@ export async function POST(req: Request) {
       patientAnonId?: string;
       issueDate?: string;
     } = body;
+
+    pdfData = rawPdfData || "";
 
     // 1. バリデーション
     if (!pdfData || typeof pdfData !== "string") {
@@ -86,7 +91,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const toEmail = (clinic.print_email || "").trim();
+    toEmail = (clinic.print_email || "").trim();
     if (!toEmail) {
       return NextResponse.json(
         { ok: false, error: "医院の送信先メールアドレスが登録されていません。" },
@@ -137,7 +142,12 @@ export async function POST(req: Request) {
     });
 
     if (sendError) {
-      console.error("Resend Send Error:", sendError);
+      console.error("Resend Send Error:", {
+        resendStatusCode: sendError?.statusCode ?? null,
+        resendErrorBody: sendError,
+        clinicEmailFound: Boolean(toEmail),
+        pdfBase64Length: pdfData?.length ?? null,
+      });
       return NextResponse.json(
         { ok: false, error: "メール送信に失敗しました。" },
         { status: 500 }
@@ -147,7 +157,18 @@ export async function POST(req: Request) {
     // 4. 成功レスポンス
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    console.error("SendPdf API Error:", err);
+    console.error("SendPdf API Error:", {
+      errorMessage: err?.message,
+      errorStack: err?.stack,
+      resendStatusCode: err?.statusCode ?? null,
+      resendErrorBody: err?.body ?? {
+        name: err?.name,
+        message: err?.message,
+        statusCode: err?.statusCode,
+      },
+      clinicEmailFound: Boolean(toEmail),
+      pdfBase64Length: pdfData?.length ?? null,
+    });
     return NextResponse.json(
       { ok: false, error: err.message || "送信エラー" },
       { status: 500 }
