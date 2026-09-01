@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useSyncExternalStore } from "react";
 import {
   Activity,
   Building2,
@@ -18,6 +18,72 @@ const A4_HEIGHT_PX = 1123;
 
 // 💡 生成結果の一時永続化用キー（PDF化後のiOS Safari復帰用。トークンは保存しない）
 const SESSION_STORAGE_KEY = "denpist-ai-generated-result";
+
+// 💡 TRACE を React state にせずモジュール級ストアで管理し、Page 自体の再レンダーを抑止する
+// （PaginatedSheet 内の addTrace が Page を再レンダーすると測定ループが発生するため）
+type TraceListener = () => void;
+const traceStore = {
+  steps: [] as string[],
+  listeners: new Set<TraceListener>(),
+  add(step: string) {
+    const entry = `${new Date().toLocaleTimeString("ja-JP", { hour12: false })} ${step}`;
+    this.steps = [...this.steps, entry];
+    this.listeners.forEach((l) => l());
+  },
+  clear() {
+    this.steps = [];
+    this.listeners.forEach((l) => l());
+  },
+  subscribe(listener: TraceListener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  },
+  getSnapshot() {
+    return this.steps;
+  },
+};
+const addTrace = (step: string) => traceStore.add(step);
+const clearTrace = () => traceStore.clear();
+
+// 💡 一時デバッグ用パネル（小さく折りたたみ可能）
+const DebugPanel = ({ debugError }: { debugError: string | null }) => {
+  const traceSteps = useSyncExternalStore(
+    traceStore.subscribe.bind(traceStore),
+    traceStore.getSnapshot.bind(traceStore),
+  );
+  const [expanded, setExpanded] = useState(true);
+
+  if (!debugError && traceSteps.length === 0) return null;
+
+  return (
+    <div className="fixed bottom-2 left-2 right-2 z-[9999] bg-red-600 text-white text-[11px] rounded-lg shadow-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full px-3 py-1.5 text-left font-bold flex items-center justify-between"
+      >
+        <span>
+          DEBUG
+          {traceSteps.length > 0 && ` (${traceSteps.length})`}
+        </span>
+        <span>{expanded ? "−" : "＋"}</span>
+      </button>
+      {expanded && (
+        <div className="px-3 pb-2 overflow-auto max-h-[100px] space-y-0.5 break-all">
+          {debugError && (
+            <div className="mb-1 border-b border-white/30 pb-1">
+              <strong>ERROR</strong>
+              <div className="whitespace-pre-wrap">{debugError}</div>
+            </div>
+          )}
+          {traceSteps.map((s, i) => (
+            <div key={i}>{s}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const FORM_DATA = {
   denture_status: ["使っている", "使っていない（初めて）"],
@@ -1633,19 +1699,9 @@ export default function Page() {
   };
   const [sending, setSending] = useState(false);
   const [printingPdf, setPrintingPdf] = useState(false);
-  // 💡 動的ページ分割完了フラグ：PDF生成前に .sheet-page-portrait が存在することを保証
-  const [sheetPaginationReady, setSheetPaginationReady] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
   const [showReset, setShowReset] = useState(false);
-  const [traceSteps, setTraceSteps] = useState<string[]>([]);
   const [generateStartedAt, setGenerateStartedAt] = useState<number | null>(null);
-
-  const addTrace = useCallback((step: string) => {
-    setTraceSteps((prev) => [
-      ...prev,
-      `${new Date().toLocaleTimeString("ja-JP", { hour12: false })} ${step}`,
-    ]);
-  }, []);
 
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
@@ -1846,7 +1902,7 @@ export default function Page() {
       return;
     }
     setLoading(true);
-    setTraceSteps([]);
+    clearTrace();
     setGenerateStartedAt(Date.now());
     showError(null);
     setResult(null);
@@ -2285,27 +2341,25 @@ export default function Page() {
   };
 
   // 💡 ブロックの高さを測定し、A4高さに収まるようにページ分割する
+  const MAX_MEASURE_RUNS = 3;
   const PaginatedSheet = ({
     blocks,
     header,
     footer,
     measureWidth = A4_WIDTH_PX,
-    onReady,
     addTrace,
   }: {
     blocks: SheetBlock[];
     header: React.ReactNode;
     footer: React.ReactNode;
     measureWidth?: number;
-    onReady?: (ready: boolean) => void;
     addTrace?: (step: string) => void;
   }) => {
     const [pages, setPages] = useState<SheetBlock[][] | null>(null);
     const measureRef = useRef<HTMLDivElement>(null);
-    const onReadyRef = useRef(onReady);
-    onReadyRef.current = onReady;
     const addTraceRef = useRef(addTrace);
     addTraceRef.current = addTrace;
+    const runCountRef = useRef(0);
 
     // 💡 10秒タイムアウトで測定が完了しない場合は単一ページにフォールバック
     useEffect(() => {
@@ -2314,18 +2368,27 @@ export default function Page() {
           console.warn("[PaginatedSheet] measurement timeout fallback");
           addTraceRef.current?.("6'.測定タイムアウト（単一ページフォールバック）");
           setPages([blocks]);
-          onReadyRef.current?.(true);
         }
       }, 10000);
       return () => clearTimeout(timer);
     }, [blocks, pages]);
 
     useEffect(() => {
-      onReadyRef.current?.(false);
+      runCountRef.current += 1;
       addTraceRef.current?.("5.測定開始");
+
+      // 💡 連続測定ループ防止：同一インスタンスで3回を超えて測定が走ったら単一ページに逃がす
+      if (runCountRef.current > MAX_MEASURE_RUNS && pages === null) {
+        console.warn(
+          `[PaginatedSheet] too many measurement runs (${runCountRef.current}), fallback to single page`
+        );
+        addTraceRef.current?.("6'''.測定ループ防止（単一ページフォールバック）");
+        setPages([blocks]);
+        return;
+      }
+
       if (!measureRef.current) {
-        addTraceRef.current?.("6.測定完了(onReady) - measureRef未設定");
-        onReadyRef.current?.(true);
+        addTraceRef.current?.("6.測定完了 - measureRef未設定");
         return;
       }
       const measureContainer = measureRef.current;
@@ -2398,19 +2461,13 @@ export default function Page() {
         }
 
         setPages(grouped.length > 0 ? grouped : [[]]);
-        addTraceRef.current?.("6.測定完了(onReady)");
-        onReadyRef.current?.(true);
+        addTraceRef.current?.("6.測定完了");
       } catch (err: any) {
         console.error("[PaginatedSheet] measurement error:", err);
         // 測定失敗時は単一ページにフォールバック（表示切れ防止）
         addTraceRef.current?.("6''.測定例外（単一ページフォールバック）");
         setPages([blocks]);
-        onReadyRef.current?.(true);
       }
-
-      return () => {
-        onReadyRef.current?.(false);
-      };
     }, [blocks, header, footer, measureWidth]);
 
     // 測定中は非表示の測定コンテナのみをレンダリング（ちらつき防止）
@@ -2605,118 +2662,101 @@ export default function Page() {
     //    Phase1: 比較表はコード固定で表示するため、AI出力の tableSection 有無では判定しない
     const singlePageSheet = isCarefulMode;
 
-    // 💡 ページ分割用ブロックを構築
-    const blocks: SheetBlock[] = [];
+    // 💡 ページ分割用ブロックを構築（安定化のため useMemo で保持）
+    const blocks = useMemo(() => {
+      const b: SheetBlock[] = [];
 
-    if (isCarefulMode) {
-      careSections.forEach((s, i) => {
-        blocks.push({
-          key: `care-${i}`,
-          content: (
-            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
-              <SectionHead gold bare>
-                {stripEmoji(s.heading)}
-              </SectionHead>
+      if (isCarefulMode) {
+        careSections.forEach((s, i) => {
+          b.push({
+            key: `care-${i}`,
+            content: (
+              <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+                <SectionHead gold bare>
+                  {stripEmoji(s.heading)}
+                </SectionHead>
+                <div
+                  className="text-[13px] leading-[2] text-ink"
+                  dangerouslySetInnerHTML={{
+                    __html: renderInline(s.body),
+                  }}
+                />
+              </div>
+            ),
+          });
+        });
+      } else {
+        if (intro) {
+          b.push({
+            key: "intro",
+            content: (
               <div
-                className="text-[13px] leading-[2] text-ink"
+                className="text-[13px] leading-[2] text-ink mb-5"
                 dangerouslySetInnerHTML={{
-                  __html: renderInline(s.body),
+                  __html: renderInline(intro.body),
                 }}
               />
+            ),
+          });
+        }
+        if (recommend) {
+          b.push({
+            key: "recommend",
+            content: (
+              <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+                <SectionHead gold bare>
+                  {stripEmoji(recommend.heading)}
+                </SectionHead>
+                <div
+                  className="text-[13px] leading-[2] text-ink"
+                  dangerouslySetInnerHTML={{
+                    __html: renderInline(recommend.body),
+                  }}
+                />
+              </div>
+            ),
+          });
+        }
+        b.push({
+          key: "insurance",
+          content: (
+            <div className="text-[13px] leading-[2] text-ink mb-5">
+              {INSURANCE_TEXT_DENTURE}
             </div>
           ),
         });
-      });
-    } else {
-      if (intro) {
-        blocks.push({
-          key: "intro",
-          content: (
-            <div
-              className="text-[13px] leading-[2] text-ink mb-5"
-              dangerouslySetInnerHTML={{
-                __html: renderInline(intro.body),
-              }}
-            />
-          ),
-        });
-      }
-      if (recommend) {
-        blocks.push({
-          key: "recommend",
-          content: (
-            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
-              <SectionHead gold bare>
-                {stripEmoji(recommend.heading)}
-              </SectionHead>
-              <div
-                className="text-[13px] leading-[2] text-ink"
-                dangerouslySetInnerHTML={{
-                  __html: renderInline(recommend.body),
-                }}
-              />
-            </div>
-          ),
-        });
-      }
-      blocks.push({
-        key: "insurance",
-        content: (
-          <div className="text-[13px] leading-[2] text-ink mb-5">
-            {INSURANCE_TEXT_DENTURE}
-          </div>
-        ),
-      });
-      if (d.firstCandidate) {
-        blocks.push({
-          key: "comparison",
-          content: (
-            <div className="mb-5">
-              <SectionHead>選択肢の比較</SectionHead>
-              <DentureComparisonTable
-                firstCandidate={d.firstCandidate}
-                sheetMode={d.sheetMode}
-              />
-            </div>
-          ),
-        });
-      }
-      if (noteItems.length > 0) {
-        blocks.push({
-          key: "notes",
-          splittable: true,
-          content: (
-            <div className="mb-5">
-              <SectionHead>注記</SectionHead>
-              <ul className="list-disc pl-5 text-[13px] leading-[2] text-ink space-y-1">
-                {noteItems.map((note, i) => (
-                  <li key={i}>{note}</li>
-                ))}
-              </ul>
-            </div>
-          ),
-        });
-      }
-      if (singlePageSheet && prosCons) {
-        blocks.push({
-          key: "prosCons",
-          splittable: true,
-          content: (
-            <div className="mb-5">
-              <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
-              <div
-                className="text-[13px] leading-[2] text-ink"
-                dangerouslySetInnerHTML={{
-                  __html: renderInline(prosCons.body),
-                }}
-              />
-            </div>
-          ),
-        });
-      }
-      if (!singlePageSheet) {
-        if (prosCons) {
-          blocks.push({
+        if (d.firstCandidate) {
+          b.push({
+            key: "comparison",
+            content: (
+              <div className="mb-5">
+                <SectionHead>選択肢の比較</SectionHead>
+                <DentureComparisonTable
+                  firstCandidate={d.firstCandidate}
+                  sheetMode={d.sheetMode}
+                />
+              </div>
+            ),
+          });
+        }
+        if (noteItems.length > 0) {
+          b.push({
+            key: "notes",
+            splittable: true,
+            content: (
+              <div className="mb-5">
+                <SectionHead>注記</SectionHead>
+                <ul className="list-disc pl-5 text-[13px] leading-[2] text-ink space-y-1">
+                  {noteItems.map((note, i) => (
+                    <li key={i}>{note}</li>
+                  ))}
+                </ul>
+              </div>
+            ),
+          });
+        }
+        if (singlePageSheet && prosCons) {
+          b.push({
             key: "prosCons",
             splittable: true,
             content: (
@@ -2732,62 +2772,94 @@ export default function Page() {
             ),
           });
         }
-        if (costSection) {
-          blocks.push({
-            key: "cost",
-            splittable: true,
-            content: (
-              <div className="mb-5">
-                <SectionHead gold>
-                  {stripEmoji(costSection.heading)}
-                </SectionHead>
-                <div className="border border-line px-5 py-4">
+        if (!singlePageSheet) {
+          if (prosCons) {
+            b.push({
+              key: "prosCons",
+              splittable: true,
+              content: (
+                <div className="mb-5">
+                  <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
                   <div
                     className="text-[13px] leading-[2] text-ink"
                     dangerouslySetInnerHTML={{
-                      __html: renderInline(costSection.body),
+                      __html: renderInline(prosCons.body),
                     }}
                   />
-                  {costNotes.length > 0 && (
-                    <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
-                      {costNotes.map((note, i) => (
-                        <p key={i}>{note}</p>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
-            ),
-          });
-        }
-        if (familySection) {
-          blocks.push({
-            key: "family",
-            splittable: true,
-            content: (
-              <div className="mb-5">
-                <SectionHead>
-                  {stripEmoji(familySection.heading)}
-                </SectionHead>
-                <div
-                  className="text-[13px] leading-[2] text-ink"
-                  dangerouslySetInnerHTML={{
-                    __html: renderInline(familySection.body),
-                  }}
-                />
-              </div>
-            ),
-          });
+              ),
+            });
+          }
+          if (costSection) {
+            b.push({
+              key: "cost",
+              splittable: true,
+              content: (
+                <div className="mb-5">
+                  <SectionHead gold>
+                    {stripEmoji(costSection.heading)}
+                  </SectionHead>
+                  <div className="border border-line px-5 py-4">
+                    <div
+                      className="text-[13px] leading-[2] text-ink"
+                      dangerouslySetInnerHTML={{
+                        __html: renderInline(costSection.body),
+                      }}
+                    />
+                    {costNotes.length > 0 && (
+                      <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
+                        {costNotes.map((note, i) => (
+                          <p key={i}>{note}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ),
+            });
+          }
+          if (familySection) {
+            b.push({
+              key: "family",
+              splittable: true,
+              content: (
+                <div className="mb-5">
+                  <SectionHead>
+                    {stripEmoji(familySection.heading)}
+                  </SectionHead>
+                  <div
+                    className="text-[13px] leading-[2] text-ink"
+                    dangerouslySetInnerHTML={{
+                      __html: renderInline(familySection.body),
+                    }}
+                  />
+                </div>
+              ),
+            });
+          }
         }
       }
-    }
+
+      return b;
+    }, [
+      isCarefulMode,
+      careSections,
+      intro,
+      recommend,
+      d,
+      noteItems,
+      costNotes,
+      prosCons,
+      costSection,
+      familySection,
+      singlePageSheet,
+    ]);
 
     return (
       <PaginatedSheet
         blocks={blocks}
         header={<Header />}
         footer={<Footer />}
-        onReady={setSheetPaginationReady}
         addTrace={addTrace}
       />
     );
@@ -2903,131 +2975,114 @@ export default function Page() {
     const singlePageSheet = isCarefulMode;
     const f = formData as CrownFormState;
 
-    // 💡 ページ分割用ブロックを構築
-    const blocks: SheetBlock[] = [];
+    // 💡 ページ分割用ブロックを構築（安定化のため useMemo で保持）
+    const blocks = useMemo(() => {
+      const b: SheetBlock[] = [];
 
-    if (isCarefulMode) {
-      blocks.push({
-        key: "careful-banner",
-        content: (
-          <div className="bg-rose-50 border border-rose-200 rounded-lg px-5 py-4 mb-5">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-              <h2 className="font-bold text-rose-800 text-[15px]">
-                まずは検査をご案内しています
-              </h2>
-            </div>
-          </div>
-        ),
-      });
-      careSections.forEach((s, i) => {
-        blocks.push({
-          key: `care-${i}`,
+      if (isCarefulMode) {
+        b.push({
+          key: "careful-banner",
           content: (
-            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
-              <SectionHead gold bare>
-                {stripEmoji(s.heading)}
-              </SectionHead>
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-5 py-4 mb-5">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+                <h2 className="font-bold text-rose-800 text-[15px]">
+                  まずは検査をご案内しています
+                </h2>
+              </div>
+            </div>
+          ),
+        });
+        careSections.forEach((s, i) => {
+          b.push({
+            key: `care-${i}`,
+            content: (
+              <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+                <SectionHead gold bare>
+                  {stripEmoji(s.heading)}
+                </SectionHead>
+                <div
+                  className="text-[13px] leading-[2] text-ink"
+                  dangerouslySetInnerHTML={{
+                    __html: renderInline(s.body),
+                  }}
+                />
+              </div>
+            ),
+          });
+        });
+      } else {
+        if (intro) {
+          b.push({
+            key: "intro",
+            content: (
               <div
-                className="text-[13px] leading-[2] text-ink"
+                className="text-[13px] leading-[2] text-ink mb-5"
                 dangerouslySetInnerHTML={{
-                  __html: renderInline(s.body),
+                  __html: renderInline(intro.body),
                 }}
               />
+            ),
+          });
+        }
+        if (recommend) {
+          b.push({
+            key: "recommend",
+            content: (
+              <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+                <SectionHead gold bare>
+                  {stripEmoji(recommend.heading)}
+                </SectionHead>
+                <div
+                  className="text-[13px] leading-[2] text-ink"
+                  dangerouslySetInnerHTML={{
+                    __html: renderInline(recommend.body),
+                  }}
+                />
+              </div>
+            ),
+          });
+        }
+        b.push({
+          key: "insurance",
+          content: (
+            <div className="text-[13px] leading-[2] text-ink mb-5">
+              {INSURANCE_TEXT_CROWN}
             </div>
           ),
         });
-      });
-    } else {
-      if (intro) {
-        blocks.push({
-          key: "intro",
-          content: (
-            <div
-              className="text-[13px] leading-[2] text-ink mb-5"
-              dangerouslySetInnerHTML={{
-                __html: renderInline(intro.body),
-              }}
-            />
-          ),
-        });
-      }
-      if (recommend) {
-        blocks.push({
-          key: "recommend",
-          content: (
-            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
-              <SectionHead gold bare>
-                {stripEmoji(recommend.heading)}
-              </SectionHead>
-              <div
-                className="text-[13px] leading-[2] text-ink"
-                dangerouslySetInnerHTML={{
-                  __html: renderInline(recommend.body),
-                }}
-              />
-            </div>
-          ),
-        });
-      }
-      blocks.push({
-        key: "insurance",
-        content: (
-          <div className="text-[13px] leading-[2] text-ink mb-5">
-            {INSURANCE_TEXT_CROWN}
-          </div>
-        ),
-      });
-      blocks.push({
-        key: "comparison",
-        content: (
-          <div className="mb-5">
-            <SectionHead>選択肢の比較</SectionHead>
-            <CrownComparisonTable
-              firstCandidate={d.firstCandidate}
-              sheetMode={d.sheetMode}
-              targetSite={f.target_site}
-              metalFreeOnly={f.metal_allergy !== "特になし"}
-            />
-          </div>
-        ),
-      });
-      if (noteItems.length > 0) {
-        blocks.push({
-          key: "notes",
-          splittable: true,
+        b.push({
+          key: "comparison",
           content: (
             <div className="mb-5">
-              <SectionHead>注記</SectionHead>
-              <ul className="list-disc pl-5 text-[13px] leading-[2] text-ink space-y-1">
-                {noteItems.map((note, i) => (
-                  <li key={i}>{note}</li>
-                ))}
-              </ul>
-            </div>
-          ),
-        });
-      }
-      if (singlePageSheet && prosCons) {
-        blocks.push({
-          key: "prosCons",
-          splittable: true,
-          content: (
-            <div className="mb-5">
-              <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
-              <div
-                className="text-[13px] leading-[2] text-ink"
-                dangerouslySetInnerHTML={{
-                  __html: renderInline(prosCons.body),
-                }}
+              <SectionHead>選択肢の比較</SectionHead>
+              <CrownComparisonTable
+                firstCandidate={d.firstCandidate}
+                sheetMode={d.sheetMode}
+                targetSite={f.target_site}
+                metalFreeOnly={f.metal_allergy !== "特になし"}
               />
             </div>
           ),
         });
-      }
-      if (!singlePageSheet) {
-        if (prosCons) {
-          blocks.push({
+        if (noteItems.length > 0) {
+          b.push({
+            key: "notes",
+            splittable: true,
+            content: (
+              <div className="mb-5">
+                <SectionHead>注記</SectionHead>
+                <ul className="list-disc pl-5 text-[13px] leading-[2] text-ink space-y-1">
+                  {noteItems.map((note, i) => (
+                    <li key={i}>{note}</li>
+                  ))}
+                </ul>
+              </div>
+            ),
+          });
+        }
+        if (singlePageSheet && prosCons) {
+          b.push({
             key: "prosCons",
             splittable: true,
             content: (
@@ -3043,43 +3098,74 @@ export default function Page() {
             ),
           });
         }
-        if (costSection) {
-          blocks.push({
-            key: "cost",
-            splittable: true,
-            content: (
-              <div className="mb-5">
-                <SectionHead gold>
-                  {stripEmoji(costSection.heading)}
-                </SectionHead>
-                <div className="border border-line px-5 py-4">
+        if (!singlePageSheet) {
+          if (prosCons) {
+            b.push({
+              key: "prosCons",
+              splittable: true,
+              content: (
+                <div className="mb-5">
+                  <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
                   <div
                     className="text-[13px] leading-[2] text-ink"
                     dangerouslySetInnerHTML={{
-                      __html: renderInline(costSection.body),
+                      __html: renderInline(prosCons.body),
                     }}
                   />
-                  {noteItems.length > 0 && (
-                    <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
-                      {noteItems.map((note, i) => (
-                        <p key={i}>{note}</p>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              </div>
-            ),
-          });
+              ),
+            });
+          }
+          if (costSection) {
+            b.push({
+              key: "cost",
+              splittable: true,
+              content: (
+                <div className="mb-5">
+                  <SectionHead gold>
+                    {stripEmoji(costSection.heading)}
+                  </SectionHead>
+                  <div className="border border-line px-5 py-4">
+                    <div
+                      className="text-[13px] leading-[2] text-ink"
+                      dangerouslySetInnerHTML={{
+                        __html: renderInline(costSection.body),
+                      }}
+                    />
+                    {noteItems.length > 0 && (
+                      <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
+                        {noteItems.map((note, i) => (
+                          <p key={i}>{note}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ),
+            });
+          }
         }
       }
-    }
+
+      return b;
+    }, [
+      isCarefulMode,
+      careSections,
+      intro,
+      recommend,
+      d,
+      noteItems,
+      prosCons,
+      costSection,
+      singlePageSheet,
+      f,
+    ]);
 
     return (
       <PaginatedSheet
         blocks={blocks}
         header={<Header />}
         footer={<Footer />}
-        onReady={setSheetPaginationReady}
         addTrace={addTrace}
       />
     );
@@ -3586,26 +3672,7 @@ export default function Page() {
       </div>
 
       {/* 💡 iOS Safari 等での未捕捉エラー可視化＋トレース（一時デバッグ用） */}
-      {(debugError || traceSteps.length > 0) && (
-        <div className="fixed bottom-2 left-2 right-2 z-[9999] bg-red-600 text-white text-[11px] p-3 rounded-lg shadow-lg break-all max-h-[40vh] overflow-auto">
-          {debugError && (
-            <>
-              <strong>DEBUG ERROR</strong>
-              <div className="mt-1 mb-2 whitespace-pre-wrap">{debugError}</div>
-            </>
-          )}
-          {traceSteps.length > 0 && (
-            <>
-              <strong>TRACE</strong>
-              <div className="mt-1 space-y-0.5">
-                {traceSteps.map((s, i) => (
-                  <div key={i}>{s}</div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+      <DebugPanel debugError={debugError} />
 
       {/* 💡 ローディング長時間化・エラー発生時の復帰手段 */}
       {showReset && (
