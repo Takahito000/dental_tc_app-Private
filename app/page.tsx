@@ -1585,6 +1585,8 @@ export default function Page() {
   const [printingPdf, setPrintingPdf] = useState(false);
   // 💡 動的ページ分割完了フラグ：PDF生成前に .sheet-page-portrait が存在することを保証
   const [sheetPaginationReady, setSheetPaginationReady] = useState(false);
+  const [debugError, setDebugError] = useState<string | null>(null);
+  const [showReset, setShowReset] = useState(false);
 
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
@@ -1654,6 +1656,31 @@ export default function Page() {
     );
   }, []);
 
+  // 💡 iOS Safari 等での未捕捉エラーを可視化する一時デバッグ機構
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      const msg = `[window.onerror] ${event.message}`;
+      setDebugError(msg);
+      console.error(msg, event.error);
+    };
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const msg = `[unhandledrejection] ${String(event.reason)}`;
+      setDebugError(msg);
+      console.error(msg, event.reason);
+    };
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleRejection);
+    return () => {
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleRejection);
+    };
+  }, []);
+
+  // 💡 未捕捉エラー発生時はリセットボタンを表示
+  useEffect(() => {
+    if (debugError) setShowReset(true);
+  }, [debugError]);
+
   useEffect(() => {
     const updateScale = () => {
       if (!previewAreaRef.current) return;
@@ -1668,6 +1695,7 @@ export default function Page() {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
+    let resetTimeout: NodeJS.Timeout;
     if (loading) {
       setLoadingStep(0);
       interval = setInterval(() => {
@@ -1675,8 +1703,15 @@ export default function Page() {
           prev < LOADING_STEPS.length - 1 ? prev + 1 : prev,
         );
       }, 4000);
+      // 💡 15秒以上ローディングが続く場合、利用者が復帰できるようリセットボタンを表示
+      resetTimeout = setTimeout(() => setShowReset(true), 15000);
+    } else {
+      setShowReset(false);
     }
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(resetTimeout);
+    };
   }, [loading]);
 
   if (!mounted) return null;
@@ -1785,12 +1820,17 @@ export default function Page() {
             price_per_day: (decision as Decision).pricePerDay,
           };
 
+    const controller = new AbortController();
+    const fetchTimeout = setTimeout(() => controller.abort(), 30000);
+
     try {
       const res = await fetch("/api/counseling", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      clearTimeout(fetchTimeout);
 
       const data = await res.json();
       if (data.success) {
@@ -1802,8 +1842,13 @@ export default function Page() {
       } else {
         showError("AI生成エラー: " + (data.error || "通信エラー"));
       }
-    } catch {
-      showError("通信エラーが発生しました。");
+    } catch (err: any) {
+      clearTimeout(fetchTimeout);
+      if (err?.name === "AbortError") {
+        showError("生成がタイムアウトしました。時間をおいて再度お試しください。");
+      } else {
+        showError("通信エラーが発生しました。");
+      }
     } finally {
       setLoading(false);
     }
@@ -1813,10 +1858,10 @@ export default function Page() {
     const { toJpeg } = await import("html-to-image");
     const { jsPDF } = await import("jspdf");
 
-    // 💡 動的ページ分割完了を待つガード：.sheet-page-portrait が出現するまで最大5秒ポーリング
+    // 💡 動的ページ分割完了を待つガード：.sheet-page-portrait が出現するまで最大10秒ポーリング
     //    測定用コンテナ（data-paginated-sheet-measure）は除外する
     const waitForPages = async (
-      timeoutMs = 5000,
+      timeoutMs = 10000,
       intervalMs = 100,
     ): Promise<HTMLElement[]> => {
       const start = Date.now();
@@ -2167,77 +2212,87 @@ export default function Page() {
 
     useEffect(() => {
       onReadyRef.current?.(false);
-      if (!measureRef.current) return;
+      if (!measureRef.current) {
+        onReadyRef.current?.(true);
+        return;
+      }
       const measureContainer = measureRef.current;
 
-      const headerEl = measureContainer.querySelector(
-        '[data-measure-part="header"]'
-      ) as HTMLElement | null;
-      const footerEl = measureContainer.querySelector(
-        '[data-measure-part="footer"]'
-      ) as HTMLElement | null;
-      const blockEls = Array.from(
-        measureContainer.querySelectorAll("[data-measure-block]")
-      ) as HTMLElement[];
+      try {
+        const headerEl = measureContainer.querySelector(
+          '[data-measure-part="header"]'
+        ) as HTMLElement | null;
+        const footerEl = measureContainer.querySelector(
+          '[data-measure-part="footer"]'
+        ) as HTMLElement | null;
+        const blockEls = Array.from(
+          measureContainer.querySelectorAll("[data-measure-block]")
+        ) as HTMLElement[];
 
-      const headerHeight = headerEl?.offsetHeight ?? 0;
-      const footerHeight = footerEl?.offsetHeight ?? 0;
-      // A4高さから上下余白（12mm≒45px×2=90px + 内部ギャップ）を引いた利用可能高さ
-      const maxContentHeight = A4_HEIGHT_PX - 90 - headerHeight - footerHeight;
+        const headerHeight = headerEl?.offsetHeight ?? 0;
+        const footerHeight = footerEl?.offsetHeight ?? 0;
+        // A4高さから上下余白（12mm≒45px×2=90px + 内部ギャップ）を引いた利用可能高さ
+        const maxContentHeight = A4_HEIGHT_PX - 90 - headerHeight - footerHeight;
 
-      // 行単位分割を適用
-      const expandedBlocks: {
-        key: string;
-        content: React.ReactNode;
-        height: number;
-      }[] = [];
-      blockEls.forEach((el, i) => {
-        const block = blocks[i];
-        const height = el.offsetHeight;
-        if (block?.splittable && height > maxContentHeight) {
-          const splits = splitBlockByChildren(block);
-          // 分割後も再測定できないため、子要素を個別に測定
-          const childEls = Array.from(el.children) as HTMLElement[];
-          childEls.forEach((childEl, j) => {
-            expandedBlocks.push({
-              key: splits[j]?.key ?? `${block.key}-${j}`,
-              content: splits[j]?.content ?? block.content,
-              height: childEl.offsetHeight,
+        // 行単位分割を適用
+        const expandedBlocks: {
+          key: string;
+          content: React.ReactNode;
+          height: number;
+        }[] = [];
+        blockEls.forEach((el, i) => {
+          const block = blocks[i];
+          const height = el.offsetHeight;
+          if (block?.splittable && height > maxContentHeight) {
+            const splits = splitBlockByChildren(block);
+            // 分割後も再測定できないため、子要素を個別に測定
+            const childEls = Array.from(el.children) as HTMLElement[];
+            childEls.forEach((childEl, j) => {
+              expandedBlocks.push({
+                key: splits[j]?.key ?? `${block.key}-${j}`,
+                content: splits[j]?.content ?? block.content,
+                height: childEl.offsetHeight,
+              });
             });
-          });
-          // 子要素が取れない場合は元のブロックをそのまま使う
-          if (childEls.length === 0) {
+            // 子要素が取れない場合は元のブロックをそのまま使う
+            if (childEls.length === 0) {
+              expandedBlocks.push({ key: block.key, content: block.content, height });
+            }
+          } else {
             expandedBlocks.push({ key: block.key, content: block.content, height });
           }
-        } else {
-          expandedBlocks.push({ key: block.key, content: block.content, height });
-        }
-      });
+        });
 
-      // ページ分割
-      const grouped: SheetBlock[][] = [];
-      let currentGroup: SheetBlock[] = [];
-      let currentHeight = 0;
+        // ページ分割
+        const grouped: SheetBlock[][] = [];
+        let currentGroup: SheetBlock[] = [];
+        let currentHeight = 0;
 
-      expandedBlocks.forEach((b) => {
-        if (
-          currentHeight + b.height > maxContentHeight &&
-          currentGroup.length > 0
-        ) {
+        expandedBlocks.forEach((b) => {
+          if (
+            currentHeight + b.height > maxContentHeight &&
+            currentGroup.length > 0
+          ) {
+            grouped.push(currentGroup);
+            currentGroup = [];
+            currentHeight = 0;
+          }
+          currentGroup.push({ key: b.key, content: b.content });
+          currentHeight += b.height;
+        });
+
+        if (currentGroup.length > 0) {
           grouped.push(currentGroup);
-          currentGroup = [];
-          currentHeight = 0;
         }
-        currentGroup.push({ key: b.key, content: b.content });
-        currentHeight += b.height;
-      });
 
-      if (currentGroup.length > 0) {
-        grouped.push(currentGroup);
+        setPages(grouped.length > 0 ? grouped : [[]]);
+        onReadyRef.current?.(true);
+      } catch (err: any) {
+        console.error("[PaginatedSheet] measurement error:", err);
+        // 測定失敗時は単一ページにフォールバック（表示切れ防止）
+        setPages([blocks]);
+        onReadyRef.current?.(true);
       }
-
-      setPages(grouped.length > 0 ? grouped : [[]]);
-      onReadyRef.current?.(true);
 
       return () => {
         onReadyRef.current?.(false);
@@ -3413,6 +3468,27 @@ export default function Page() {
           )}
         </section>
       </div>
+
+      {/* 💡 iOS Safari 等での未捕捉エラー可視化（一時デバッグ用） */}
+      {debugError && (
+        <div className="fixed bottom-2 left-2 right-2 z-[9999] bg-red-600 text-white text-[11px] p-3 rounded-lg shadow-lg break-all max-h-[40vh] overflow-auto">
+          <strong>DEBUG ERROR</strong>
+          <div className="mt-1 whitespace-pre-wrap">{debugError}</div>
+        </div>
+      )}
+
+      {/* 💡 ローディング長時間化・エラー発生時の復帰手段 */}
+      {showReset && (
+        <div className="fixed bottom-2 left-2 right-2 z-[9998] bg-amber-50 border border-amber-300 text-amber-900 text-[11px] p-3 rounded-lg shadow-lg text-center">
+          <p className="mb-2">操作が長時間続いているか、エラーが発生しました。</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-ink text-white text-xs font-bold rounded-lg hover:bg-accent transition"
+          >
+            もう一度お試しください（画面を再読み込みします）
+          </button>
+        </div>
+      )}
     </main>
   );
 }
