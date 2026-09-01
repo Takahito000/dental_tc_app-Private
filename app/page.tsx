@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Activity,
   Building2,
@@ -1848,6 +1848,19 @@ export default function Page() {
         offscreenWrapper.innerHTML = "";
         offscreenWrapper.appendChild(clone);
 
+        // 💡 cloneNode では React の useEffect が発火しないため、PageContentFitter の zoom 調整を手動で再適用
+        const fitter = clone.querySelector(
+          "[data-page-content-fitter]"
+        ) as HTMLElement | null;
+        if (fitter) {
+          fitter.style.zoom = "1";
+          const available = A4_HEIGHT_PX - 90;
+          const measured = fitter.scrollHeight;
+          if (measured > available) {
+            fitter.style.zoom = String(Math.max(0.7, available / measured));
+          }
+        }
+
         // DOMのレイアウト更新を待つ
         // ※「PDFで開く」は新タブがフォーカスを奪うため元タブがバックグラウンド化し、
         //   requestAnimationFrame が停止して永久に解決しない事故が起きる。
@@ -2047,15 +2060,210 @@ export default function Page() {
           overflow: "hidden",
         }}
       >
-        <div
-          ref={fitContentToA4}
-          style={{ display: "flex", flexDirection: "column", height: "100%" }}
-        >
+        <PageContentFitter>
           {children}
-        </div>
+        </PageContentFitter>
       </div>
     </div>
   );
+
+  // 💡 1ページの内容がA4高さを超えた場合に限り zoom で縮小し、行の途中切断を回避する最終フォールバック
+  const PageContentFitter = ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => {
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (!ref.current) return;
+      const el = ref.current;
+      el.style.zoom = "1";
+      const available = A4_HEIGHT_PX - 90; // 上下余白を差し引いた利用可能高さ
+      const measured = el.scrollHeight;
+      if (measured > available) {
+        el.style.zoom = String(Math.max(0.7, available / measured));
+      }
+    });
+    return (
+      <div
+        ref={ref}
+        data-page-content-fitter
+        style={{ display: "flex", flexDirection: "column", height: "100%" }}
+      >
+        {children}
+      </div>
+    );
+  };
+
+  // 💡 ページ分割用ブロック型
+  type SheetBlock = {
+    key: string;
+    content: React.ReactNode;
+    splittable?: boolean; // true の場合、子要素（li/p）単位で分割可能
+  };
+
+  // 💡 子要素を行単位に分割するヘルパー
+  const splitBlockByChildren = (block: SheetBlock): SheetBlock[] => {
+    const element = block.content as React.ReactElement;
+    if (!React.isValidElement(element)) return [block];
+
+    const children = (element.props as { children?: React.ReactNode }).children;
+    const childArray = React.Children.toArray(children).filter(
+      (c) => c !== null && c !== undefined && c !== ""
+    );
+    if (childArray.length <= 1) return [block];
+
+    return childArray.map((child, i) => {
+      const wrapped = React.cloneElement(
+        element as React.ReactElement,
+        { key: `${block.key}-${i}` },
+        child
+      );
+      return { key: `${block.key}-${i}`, content: wrapped };
+    });
+  };
+
+  // 💡 ブロックの高さを測定し、A4高さに収まるようにページ分割する
+  const PaginatedSheet = ({
+    blocks,
+    header,
+    footer,
+    measureWidth = A4_WIDTH_PX,
+  }: {
+    blocks: SheetBlock[];
+    header: React.ReactNode;
+    footer: React.ReactNode;
+    measureWidth?: number;
+  }) => {
+    const [pages, setPages] = useState<SheetBlock[][] | null>(null);
+    const measureRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      if (!measureRef.current) return;
+      const measureContainer = measureRef.current;
+
+      const headerEl = measureContainer.querySelector(
+        '[data-measure-part="header"]'
+      ) as HTMLElement | null;
+      const footerEl = measureContainer.querySelector(
+        '[data-measure-part="footer"]'
+      ) as HTMLElement | null;
+      const blockEls = Array.from(
+        measureContainer.querySelectorAll("[data-measure-block]")
+      ) as HTMLElement[];
+
+      const headerHeight = headerEl?.offsetHeight ?? 0;
+      const footerHeight = footerEl?.offsetHeight ?? 0;
+      // A4高さから上下余白（12mm≒45px×2=90px + 内部ギャップ）を引いた利用可能高さ
+      const maxContentHeight = A4_HEIGHT_PX - 90 - headerHeight - footerHeight;
+
+      // 行単位分割を適用
+      const expandedBlocks: {
+        key: string;
+        content: React.ReactNode;
+        height: number;
+      }[] = [];
+      blockEls.forEach((el, i) => {
+        const block = blocks[i];
+        const height = el.offsetHeight;
+        if (block?.splittable && height > maxContentHeight) {
+          const splits = splitBlockByChildren(block);
+          // 分割後も再測定できないため、子要素を個別に測定
+          const childEls = Array.from(el.children) as HTMLElement[];
+          childEls.forEach((childEl, j) => {
+            expandedBlocks.push({
+              key: splits[j]?.key ?? `${block.key}-${j}`,
+              content: splits[j]?.content ?? block.content,
+              height: childEl.offsetHeight,
+            });
+          });
+          // 子要素が取れない場合は元のブロックをそのまま使う
+          if (childEls.length === 0) {
+            expandedBlocks.push({ key: block.key, content: block.content, height });
+          }
+        } else {
+          expandedBlocks.push({ key: block.key, content: block.content, height });
+        }
+      });
+
+      // ページ分割
+      const grouped: SheetBlock[][] = [];
+      let currentGroup: SheetBlock[] = [];
+      let currentHeight = 0;
+
+      expandedBlocks.forEach((b) => {
+        if (
+          currentHeight + b.height > maxContentHeight &&
+          currentGroup.length > 0
+        ) {
+          grouped.push(currentGroup);
+          currentGroup = [];
+          currentHeight = 0;
+        }
+        currentGroup.push({ key: b.key, content: b.content });
+        currentHeight += b.height;
+      });
+
+      if (currentGroup.length > 0) {
+        grouped.push(currentGroup);
+      }
+
+      setPages(grouped.length > 0 ? grouped : [[]]);
+    }, [blocks, header, footer, measureWidth]);
+
+    // 測定中は非表示の測定コンテナのみをレンダリング（ちらつき防止）
+    if (!pages) {
+      return (
+        <div
+          ref={measureRef}
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            left: "-9999px",
+            top: 0,
+            width: `${measureWidth}px`,
+            visibility: "hidden",
+            pointerEvents: "none",
+          }}
+        >
+          <div data-measure-part="header" style={{ width: `${measureWidth}px` }}>
+            {header}
+          </div>
+          <div data-measure-part="footer" style={{ width: `${measureWidth}px` }}>
+            {footer}
+          </div>
+          {blocks.map((block) => (
+            <div
+              key={block.key}
+              data-measure-block={block.key}
+              style={{ width: `${measureWidth}px` }}
+            >
+              {block.content}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {pages.map((pageBlocks, pageIndex) => (
+          <A4PageWrapper
+            key={pageIndex}
+            isLast={pageIndex === pages.length - 1}
+          >
+            {header}
+            {pageBlocks.map((block) => (
+              <React.Fragment key={block.key}>
+                {block.content}
+              </React.Fragment>
+            ))}
+            {footer}
+          </A4PageWrapper>
+        ))}
+      </>
+    );
+  };
 
   // ===== 義歯版 A4患者シートコンポーネント =====
   const DenturePatientSheet = () => {
@@ -2077,6 +2285,15 @@ export default function Page() {
         s.heading.includes("良い点") ||
         s.heading.includes("注意点") ||
         s.heading.includes("次のステップ"),
+    );
+    // 💡 慎重モード用：複数のセクションをすべて拾う（find では後半が落ちるため filter）
+    const careSections = sheet.sections.filter(
+      (s) =>
+        s.heading.includes("悩み") ||
+        s.heading.includes("おすすめ") ||
+        s.heading.includes("知っておいて") ||
+        s.heading.includes("次のステップ") ||
+        s.heading.includes("次の一歩"),
     );
     const costSection = sheet.sections.find((s) =>
       s.heading.includes("費用"),
@@ -2142,23 +2359,25 @@ export default function Page() {
       .filter((text): text is string => !!text);
 
     const Header = () => (
-      <div className="flex items-end justify-between gap-6 border-b-[1.5px] border-b-ink pb-3 mb-5">
-        <div>
+      <div className="border-b-[1.5px] border-b-ink pb-3 mb-5">
+        <div className="flex items-start justify-between gap-4">
           <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
             {sheetTitle}
           </h1>
-          <div className="text-[8px] tracking-[0.3em] text-accent font-bold mt-1">
+          {cleanClinicName && (
+            <div className="text-right font-bold text-ink text-[11px] shrink-0">
+              {cleanClinicName}
+            </div>
+          )}
+        </div>
+        <div className="flex items-start justify-between gap-4 mt-1">
+          <div className="text-[8px] tracking-[0.3em] text-accent font-bold">
             AI OBJECTIVE ANALYSIS
           </div>
-        </div>
-        <div className="text-right text-[10.5px] leading-relaxed shrink-0 text-ink-soft">
-          {cleanClinicName && (
-            <div className="font-bold text-ink text-[11px]">{cleanClinicName}</div>
-          )}
-          <div className="text-[9px] mt-0.5 space-y-0.5">
-            <div>発行日: {issueDate}</div>
-            {staffName.trim() && <div>担当: {staffName.trim()}</div>}
-            {patientAnonId && <div>管理ID: {patientAnonId}</div>}
+          <div className="text-right text-[9px] leading-relaxed shrink-0 text-ink-soft flex items-center gap-3">
+            <span>発行日: {issueDate}</span>
+            {staffName.trim() && <span>担当: {staffName.trim()}</span>}
+            {patientAnonId && <span>管理ID: {patientAnonId}</span>}
           </div>
         </div>
       </div>
@@ -2174,20 +2393,46 @@ export default function Page() {
     //    Phase1: 比較表はコード固定で表示するため、AI出力の tableSection 有無では判定しない
     const singlePageSheet = isCarefulMode;
 
-    return (
-      <>
-        {/* PAGE 1 */}
-        <A4PageWrapper isLast={singlePageSheet}>
-          <Header />
-          {intro && (
+    // 💡 ページ分割用ブロックを構築
+    const blocks: SheetBlock[] = [];
+
+    if (isCarefulMode) {
+      careSections.forEach((s, i) => {
+        blocks.push({
+          key: `care-${i}`,
+          content: (
+            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+              <SectionHead gold bare>
+                {stripEmoji(s.heading)}
+              </SectionHead>
+              <div
+                className="text-[13px] leading-[2] text-ink"
+                dangerouslySetInnerHTML={{
+                  __html: renderInline(s.body),
+                }}
+              />
+            </div>
+          ),
+        });
+      });
+    } else {
+      if (intro) {
+        blocks.push({
+          key: "intro",
+          content: (
             <div
               className="text-[13px] leading-[2] text-ink mb-5"
               dangerouslySetInnerHTML={{
                 __html: renderInline(intro.body),
               }}
             />
-          )}
-          {recommend && (
+          ),
+        });
+      }
+      if (recommend) {
+        blocks.push({
+          key: "recommend",
+          content: (
             <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
               <SectionHead gold bare>
                 {stripEmoji(recommend.heading)}
@@ -2199,15 +2444,21 @@ export default function Page() {
                 }}
               />
             </div>
-          )}
-          {/* Phase 1: 保険説明はコード固定文を必ず表示 */}
-          {!isCarefulMode && (
-            <div className="text-[13px] leading-[2] text-ink mb-5">
-              {INSURANCE_TEXT_DENTURE}
-            </div>
-          )}
-          {/* Phase 1: 比較表はAI出力に依存せずコード固定コンポーネントでレンダリング */}
-          {!isCarefulMode && d.firstCandidate && (
+          ),
+        });
+      }
+      blocks.push({
+        key: "insurance",
+        content: (
+          <div className="text-[13px] leading-[2] text-ink mb-5">
+            {INSURANCE_TEXT_DENTURE}
+          </div>
+        ),
+      });
+      if (d.firstCandidate) {
+        blocks.push({
+          key: "comparison",
+          content: (
             <div className="mb-5">
               <SectionHead>選択肢の比較</SectionHead>
               <DentureComparisonTable
@@ -2215,9 +2466,14 @@ export default function Page() {
                 sheetMode={d.sheetMode}
               />
             </div>
-          )}
-          {/* Phase 1: 注記フラグに対応する固定注記をコード側で表示 */}
-          {!isCarefulMode && noteItems.length > 0 && (
+          ),
+        });
+      }
+      if (noteItems.length > 0) {
+        blocks.push({
+          key: "notes",
+          splittable: true,
+          content: (
             <div className="mb-5">
               <SectionHead>注記</SectionHead>
               <ul className="list-disc pl-5 text-[13px] leading-[2] text-ink space-y-1">
@@ -2226,8 +2482,14 @@ export default function Page() {
                 ))}
               </ul>
             </div>
-          )}
-          {singlePageSheet && prosCons && (
+          ),
+        });
+      }
+      if (singlePageSheet && prosCons) {
+        blocks.push({
+          key: "prosCons",
+          splittable: true,
+          content: (
             <div className="mb-5">
               <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
               <div
@@ -2237,63 +2499,83 @@ export default function Page() {
                 }}
               />
             </div>
-          )}
-          <Footer />
-        </A4PageWrapper>
+          ),
+        });
+      }
+      if (!singlePageSheet) {
+        if (prosCons) {
+          blocks.push({
+            key: "prosCons",
+            splittable: true,
+            content: (
+              <div className="mb-5">
+                <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+                <div
+                  className="text-[13px] leading-[2] text-ink"
+                  dangerouslySetInnerHTML={{
+                    __html: renderInline(prosCons.body),
+                  }}
+                />
+              </div>
+            ),
+          });
+        }
+        if (costSection) {
+          blocks.push({
+            key: "cost",
+            splittable: true,
+            content: (
+              <div className="mb-5">
+                <SectionHead gold>
+                  {stripEmoji(costSection.heading)}
+                </SectionHead>
+                <div className="border border-line px-5 py-4">
+                  <div
+                    className="text-[13px] leading-[2] text-ink"
+                    dangerouslySetInnerHTML={{
+                      __html: renderInline(costSection.body),
+                    }}
+                  />
+                  {costNotes.length > 0 && (
+                    <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
+                      {costNotes.map((note, i) => (
+                        <p key={i}>{note}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ),
+          });
+        }
+        if (familySection) {
+          blocks.push({
+            key: "family",
+            splittable: true,
+            content: (
+              <div className="mb-5">
+                <SectionHead>
+                  {stripEmoji(familySection.heading)}
+                </SectionHead>
+                <div
+                  className="text-[13px] leading-[2] text-ink"
+                  dangerouslySetInnerHTML={{
+                    __html: renderInline(familySection.body),
+                  }}
+                />
+              </div>
+            ),
+          });
+        }
+      }
+    }
 
-        {/* PAGE 2 */}
-        {!singlePageSheet && (prosCons || costSection || familySection) && (
-          <A4PageWrapper isLast>
-            <Header />
-            <div className="grid grid-cols-1 gap-6">
-              {prosCons && (
-                <div>
-                  <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
-                  <div
-                    className="text-[13px] leading-[2] text-ink"
-                    dangerouslySetInnerHTML={{
-                      __html: renderInline(prosCons.body),
-                    }}
-                  />
-                </div>
-              )}
-              {costSection && (
-                <div>
-                  <SectionHead gold>{stripEmoji(costSection.heading)}</SectionHead>
-                  <div className="border border-line px-5 py-4">
-                    <div
-                      className="text-[13px] leading-[2] text-ink"
-                      dangerouslySetInnerHTML={{
-                        __html: renderInline(costSection.body),
-                      }}
-                    />
-                    {/* Phase 1: 費用ブロック末尾に固定の費用注記・両顎注記を、冒頭には費用重視注記を表示 */}
-                    {costNotes.length > 0 && (
-                      <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
-                        {costNotes.map((note, i) => (
-                          <p key={i}>{note}</p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              {familySection && (
-                <div>
-                  <SectionHead>{stripEmoji(familySection.heading)}</SectionHead>
-                  <div
-                    className="text-[13px] leading-[2] text-ink"
-                    dangerouslySetInnerHTML={{
-                      __html: renderInline(familySection.body),
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-            <Footer />
-          </A4PageWrapper>
-        )}
-      </>
+    return (
+      <PaginatedSheet
+        blocks={blocks}
+        header={<Header />}
+        footer={<Footer />}
+      />
     );
   };
 
@@ -2370,25 +2652,25 @@ export default function Page() {
     });
 
     const Header = () => (
-      <div className="flex items-end justify-between gap-6 border-b-[1.5px] border-b-ink pb-3 mb-5">
-        <div>
+      <div className="border-b-[1.5px] border-b-ink pb-3 mb-5">
+        <div className="flex items-start justify-between gap-4">
           <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
             {sheetTitle}
           </h1>
-          <div className="text-[8px] tracking-[0.3em] text-accent font-bold mt-1">
-            AI OBJECTIVE ANALYSIS
-          </div>
-        </div>
-        <div className="text-right text-[10.5px] leading-relaxed shrink-0 text-ink-soft">
           {cleanClinicName && (
-            <div className="font-bold text-ink text-[11px]">
+            <div className="text-right font-bold text-ink text-[11px] shrink-0">
               {cleanClinicName}
             </div>
           )}
-          <div className="text-[9px] mt-0.5 space-y-0.5">
-            <div>発行日: {issueDate}</div>
-            {staffName.trim() && <div>担当: {staffName.trim()}</div>}
-            {patientAnonId && <div>管理ID: {patientAnonId}</div>}
+        </div>
+        <div className="flex items-start justify-between gap-4 mt-1">
+          <div className="text-[8px] tracking-[0.3em] text-accent font-bold">
+            AI OBJECTIVE ANALYSIS
+          </div>
+          <div className="text-right text-[9px] leading-relaxed shrink-0 text-ink-soft flex items-center gap-3">
+            <span>発行日: {issueDate}</span>
+            {staffName.trim() && <span>担当: {staffName.trim()}</span>}
+            {patientAnonId && <span>管理ID: {patientAnonId}</span>}
           </div>
         </div>
       </div>
@@ -2403,87 +2685,100 @@ export default function Page() {
     const singlePageSheet = isCarefulMode;
     const f = formData as CrownFormState;
 
-    return (
-      <>
-        {/* PAGE 1 */}
-        <A4PageWrapper isLast={singlePageSheet}>
-          <Header />
-          {/* 💡 careful モードは一見して分かるバナーを表示 */}
-          {isCarefulMode && (
-            <div className="bg-rose-50 border border-rose-200 rounded-lg px-5 py-4 mb-5">
-              <div className="flex items-center gap-2">
-                <AlertTriangle size={16} className="text-rose-600 shrink-0" />
-                <h2 className="font-bold text-rose-800 text-[15px]">
-                  まずは検査をご案内しています
-                </h2>
-              </div>
+    // 💡 ページ分割用ブロックを構築
+    const blocks: SheetBlock[] = [];
+
+    if (isCarefulMode) {
+      blocks.push({
+        key: "careful-banner",
+        content: (
+          <div className="bg-rose-50 border border-rose-200 rounded-lg px-5 py-4 mb-5">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+              <h2 className="font-bold text-rose-800 text-[15px]">
+                まずは検査をご案内しています
+              </h2>
             </div>
-          )}
-          {isCarefulMode ? (
-            // 💡 careful モードは AI からの4ブロックをすべて強調表示
-            <div className="space-y-4 mb-5">
-              {careSections.map((s, i) => (
-                <div
-                  key={i}
-                  className="bg-tint border-l-[3px] border-l-gold px-5 py-4"
-                >
-                  <SectionHead gold bare>
-                    {stripEmoji(s.heading)}
-                  </SectionHead>
-                  <div
-                    className="text-[13px] leading-[2] text-ink"
-                    dangerouslySetInnerHTML={{
-                      __html: renderInline(s.body),
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <>
-              {intro && (
-                <div
-                  className="text-[13px] leading-[2] text-ink mb-5"
-                  dangerouslySetInnerHTML={{
-                    __html: renderInline(intro.body),
-                  }}
-                />
-              )}
-              {recommend && (
-                <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
-                  <SectionHead gold bare>
-                    {stripEmoji(recommend.heading)}
-                  </SectionHead>
-                  <div
-                    className="text-[13px] leading-[2] text-ink"
-                    dangerouslySetInnerHTML={{
-                      __html: renderInline(recommend.body),
-                    }}
-                  />
-                </div>
-              )}
-            </>
-          )}
-          {/* Phase 2: 保険説明はコード固定文を必ず表示 */}
-          {!isCarefulMode && (
-            <div className="text-[13px] leading-[2] text-ink mb-5">
-              {INSURANCE_TEXT_CROWN}
-            </div>
-          )}
-          {/* Phase 2: 比較表はAI出力に依存せずコード固定コンポーネントでレンダリング */}
-          {!isCarefulMode && (
-            <div className="mb-5">
-              <SectionHead>選択肢の比較</SectionHead>
-              <CrownComparisonTable
-                firstCandidate={d.firstCandidate}
-                sheetMode={d.sheetMode}
-                targetSite={f.target_site}
-                metalFreeOnly={f.metal_allergy !== "特になし"}
+          </div>
+        ),
+      });
+      careSections.forEach((s, i) => {
+        blocks.push({
+          key: `care-${i}`,
+          content: (
+            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+              <SectionHead gold bare>
+                {stripEmoji(s.heading)}
+              </SectionHead>
+              <div
+                className="text-[13px] leading-[2] text-ink"
+                dangerouslySetInnerHTML={{
+                  __html: renderInline(s.body),
+                }}
               />
             </div>
-          )}
-          {/* Phase 2: 注記フラグに対応する固定注記をコード側で表示 */}
-          {!isCarefulMode && noteItems.length > 0 && (
+          ),
+        });
+      });
+    } else {
+      if (intro) {
+        blocks.push({
+          key: "intro",
+          content: (
+            <div
+              className="text-[13px] leading-[2] text-ink mb-5"
+              dangerouslySetInnerHTML={{
+                __html: renderInline(intro.body),
+              }}
+            />
+          ),
+        });
+      }
+      if (recommend) {
+        blocks.push({
+          key: "recommend",
+          content: (
+            <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
+              <SectionHead gold bare>
+                {stripEmoji(recommend.heading)}
+              </SectionHead>
+              <div
+                className="text-[13px] leading-[2] text-ink"
+                dangerouslySetInnerHTML={{
+                  __html: renderInline(recommend.body),
+                }}
+              />
+            </div>
+          ),
+        });
+      }
+      blocks.push({
+        key: "insurance",
+        content: (
+          <div className="text-[13px] leading-[2] text-ink mb-5">
+            {INSURANCE_TEXT_CROWN}
+          </div>
+        ),
+      });
+      blocks.push({
+        key: "comparison",
+        content: (
+          <div className="mb-5">
+            <SectionHead>選択肢の比較</SectionHead>
+            <CrownComparisonTable
+              firstCandidate={d.firstCandidate}
+              sheetMode={d.sheetMode}
+              targetSite={f.target_site}
+              metalFreeOnly={f.metal_allergy !== "特になし"}
+            />
+          </div>
+        ),
+      });
+      if (noteItems.length > 0) {
+        blocks.push({
+          key: "notes",
+          splittable: true,
+          content: (
             <div className="mb-5">
               <SectionHead>注記</SectionHead>
               <ul className="list-disc pl-5 text-[13px] leading-[2] text-ink space-y-1">
@@ -2492,8 +2787,14 @@ export default function Page() {
                 ))}
               </ul>
             </div>
-          )}
-          {!isCarefulMode && singlePageSheet && prosCons && (
+          ),
+        });
+      }
+      if (singlePageSheet && prosCons) {
+        blocks.push({
+          key: "prosCons",
+          splittable: true,
+          content: (
             <div className="mb-5">
               <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
               <div
@@ -2503,53 +2804,64 @@ export default function Page() {
                 }}
               />
             </div>
-          )}
-          <Footer />
-        </A4PageWrapper>
-
-        {/* PAGE 2 */}
-        {!singlePageSheet && (prosCons || costSection) && (
-          <A4PageWrapper isLast>
-            <Header />
-            <div className="grid grid-cols-1 gap-6">
-              {!isCarefulMode && prosCons && (
-                <div>
-                  <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+          ),
+        });
+      }
+      if (!singlePageSheet) {
+        if (prosCons) {
+          blocks.push({
+            key: "prosCons",
+            splittable: true,
+            content: (
+              <div className="mb-5">
+                <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+                <div
+                  className="text-[13px] leading-[2] text-ink"
+                  dangerouslySetInnerHTML={{
+                    __html: renderInline(prosCons.body),
+                  }}
+                />
+              </div>
+            ),
+          });
+        }
+        if (costSection) {
+          blocks.push({
+            key: "cost",
+            splittable: true,
+            content: (
+              <div className="mb-5">
+                <SectionHead gold>
+                  {stripEmoji(costSection.heading)}
+                </SectionHead>
+                <div className="border border-line px-5 py-4">
                   <div
                     className="text-[13px] leading-[2] text-ink"
                     dangerouslySetInnerHTML={{
-                      __html: renderInline(prosCons.body),
+                      __html: renderInline(costSection.body),
                     }}
                   />
+                  {noteItems.length > 0 && (
+                    <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
+                      {noteItems.map((note, i) => (
+                        <p key={i}>{note}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-              {costSection && (
-                <div>
-                  <SectionHead gold>
-                    {stripEmoji(costSection.heading)}
-                  </SectionHead>
-                  <div className="border border-line px-5 py-4">
-                    <div
-                      className="text-[13px] leading-[2] text-ink"
-                      dangerouslySetInnerHTML={{
-                        __html: renderInline(costSection.body),
-                      }}
-                    />
-                    {noteItems.length > 0 && (
-                      <div className="mt-3 text-[13px] leading-[2] text-ink border-t border-line pt-3 space-y-1">
-                        {noteItems.map((note, i) => (
-                          <p key={i}>{note}</p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <Footer />
-          </A4PageWrapper>
-        )}
-      </>
+              </div>
+            ),
+          });
+        }
+      }
+    }
+
+    return (
+      <PaginatedSheet
+        blocks={blocks}
+        header={<Header />}
+        footer={<Footer />}
+      />
     );
   };
 
