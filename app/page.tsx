@@ -1887,7 +1887,7 @@ export default function Page() {
     }
   };
 
-  // 💡 動的トークンと衛生士名を伴う送信処理
+  // 💡 動的トークンと衛生士名を伴う送信処理（Resend 経由の自前メール送信）
   const handleSendPrint = async () => {
     if (!token) {
       alert(
@@ -1913,27 +1913,45 @@ export default function Page() {
       const currentStaff = staffName.trim() || "担当衛生士";
       localStorage.setItem("staff_name", currentStaff);
 
-      const sendData = new FormData();
-      sendData.append("access_token", token); // 👈 動的トークン
-      sendData.append("staff_name", currentStaff); // 👈 衛生士名
-      sendData.append("clinic_name", clinicName);
-      // 💡 生成時���Supabaseが発番した本物の管理IDを送る（固定値 "A101" は初期テストの残滓で、メール本文の患者IDが常にA101になる原因だった）
-      sendData.append("patient_anon_id", patientAnonId || "");
-      sendData.append("pdfFile", pdfBlob, "sheet.pdf");
+      // PDF Blob を base64 に変換
+      const arrayBuffer = await pdfBlob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const pdfData = btoa(binary);
 
-      const res = await fetch("/api/print", {
+      // ファイル名用の日付（YYYYMMDD / 日本時間）
+      const now = new Date();
+      const dateForFilename = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+      const fileName = `AI客観分析レポート_${dateForFilename}_${patientAnonId || ""}.pdf`;
+
+      const res = await fetch("/api/send-pdf", {
         method: "POST",
-        body: sendData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfData,
+          accessToken: token,
+          fileName,
+          patientAnonId: patientAnonId || "",
+          issueDate: new Date().toLocaleDateString("ja-JP", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            timeZone: "Asia/Tokyo",
+          }),
+        }),
       });
 
       const data = await res.json();
-      if (data.success) {
-        alert("PDFの送信が完了しました！メールを確認してください。");
+      if (data.ok) {
+        alert("医院の登録メールアドレス宛に送信しました");
       } else {
-        alert("送信失敗: " + data.error);
+        alert("送信に失敗しました。時間をおいて再度お試しください");
       }
     } catch (err: any) {
-      alert("通信エラーが発生しました。詳細: " + err.message);
+      alert("送信に失敗しました。時間をおいて再度お試しください");
     } finally {
       setSending(false);
     }
