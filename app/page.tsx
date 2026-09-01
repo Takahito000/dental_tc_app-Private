@@ -374,15 +374,23 @@ function escapeRegExp(string: string): string {
 }
 
 function parsePatientSheet(raw: string) {
-  const lines = raw.trim().split("\n");
-  const title =
-    lines[0]?.replace(/^#+\s*/, "").trim() ??
-    "【客観分析レポート】お口の治療選択肢の比較";
-  const issueLine =
-    lines.find((l) => l.includes("発行日") || l.includes("管理ID")) ?? "";
-
   // コード側で固定表示する定型文・表をAI出力から除去（二重出力防止）
   let bodyOnly = raw.replace(/本シートは一般的な情報提供[\s\S]*$/, "");
+
+  // 旧フォーマットの見出し・発行日行が本文に混入しないよう、先頭のメタ行を除去
+  const sanitizedLines: string[] = [];
+  let skippingLeading = true;
+  for (const line of bodyOnly.split("\n")) {
+    if (skippingLeading) {
+      const t = line.trim().replace(/^#+\s*/, "");
+      if (t.startsWith("【") || /^発行日[：:]/.test(t) || t === "") {
+        continue;
+      }
+      skippingLeading = false;
+    }
+    sanitizedLines.push(line);
+  }
+  bodyOnly = sanitizedLines.join("\n");
 
   // HTMLテーブルブロックを除去
   bodyOnly = bodyOnly.replace(/<table\b[^>]*>[\s\S]*?<\/table>/gi, "");
@@ -413,7 +421,7 @@ function parsePatientSheet(raw: string) {
   while ((m = sectionRegex.exec(bodyOnly)) !== null) {
     sections.push({ heading: m[1].trim(), body: m[2].trim() });
   }
-  return { title, issueLine, sections, disclaimer: DISCLAIMER_DENTURE };
+  return { sections, disclaimer: DISCLAIMER_DENTURE };
 }
 
 const renderInline = (text: string) =>
@@ -2041,6 +2049,13 @@ export default function Page() {
       ? "【AI客観分析レポート】ご希望の整理と次のステップ"
       : "【AI客観分析レポート】お口の治療選択肢の比較";
 
+    const issueDate = new Date().toLocaleDateString("ja-JP", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone: "Asia/Tokyo",
+    });
+
     // 💡 セクション見出し（デザイン刷新案A）: 明朝体＋小さな色面マーカー＋下罫線。アイコン・青バーは廃止
     const SectionHead = ({
       children,
@@ -2097,13 +2112,9 @@ export default function Page() {
             <div className="font-bold text-ink text-[11px]">{cleanClinicName}</div>
           )}
           <div className="text-[9px] mt-0.5 space-y-0.5">
-            {sheet.issueLine
-              .replace(/:\s*/g, ":")
-              .split(/[ \s]+/)
-              .filter(Boolean)
-              .map((item, index) => (
-                <div key={index}>{item}</div>
-              ))}
+            <div>発行日: {issueDate}</div>
+            {staffName.trim() && <div>担当: {staffName.trim()}</div>}
+            {patientAnonId && <div>管理ID: {patientAnonId}</div>}
           </div>
         </div>
       </div>
