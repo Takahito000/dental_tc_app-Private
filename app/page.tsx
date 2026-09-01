@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo, useSyncExternalStore } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Activity,
   Building2,
@@ -18,72 +18,6 @@ const A4_HEIGHT_PX = 1123;
 
 // 💡 生成結果の一時永続化用キー（PDF化後のiOS Safari復帰用。トークンは保存しない）
 const SESSION_STORAGE_KEY = "denpist-ai-generated-result";
-
-// 💡 TRACE を React state にせずモジュール級ストアで管理し、Page 自体の再レンダーを抑止する
-// （PaginatedSheet 内の addTrace が Page を再レンダーすると測定ループが発生するため）
-type TraceListener = () => void;
-const traceStore = {
-  steps: [] as string[],
-  listeners: new Set<TraceListener>(),
-  add(step: string) {
-    const entry = `${new Date().toLocaleTimeString("ja-JP", { hour12: false })} ${step}`;
-    this.steps = [...this.steps, entry];
-    this.listeners.forEach((l) => l());
-  },
-  clear() {
-    this.steps = [];
-    this.listeners.forEach((l) => l());
-  },
-  subscribe(listener: TraceListener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  },
-  getSnapshot() {
-    return this.steps;
-  },
-};
-const addTrace = (step: string) => traceStore.add(step);
-const clearTrace = () => traceStore.clear();
-
-// 💡 一時デバッグ用パネル（小さく折りたたみ可能）
-const DebugPanel = ({ debugError }: { debugError: string | null }) => {
-  const traceSteps = useSyncExternalStore(
-    traceStore.subscribe.bind(traceStore),
-    traceStore.getSnapshot.bind(traceStore),
-  );
-  const [expanded, setExpanded] = useState(true);
-
-  if (!debugError && traceSteps.length === 0) return null;
-
-  return (
-    <div className="fixed bottom-2 left-2 right-2 z-[9999] bg-red-600 text-white text-[11px] rounded-lg shadow-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full px-3 py-1.5 text-left font-bold flex items-center justify-between"
-      >
-        <span>
-          DEBUG
-          {traceSteps.length > 0 && ` (${traceSteps.length})`}
-        </span>
-        <span>{expanded ? "−" : "＋"}</span>
-      </button>
-      {expanded && (
-        <div className="px-3 pb-2 overflow-auto max-h-[100px] space-y-0.5 break-all">
-          {debugError && (
-            <div className="mb-1 border-b border-white/30 pb-1">
-              <strong>ERROR</strong>
-              <div className="whitespace-pre-wrap">{debugError}</div>
-            </div>
-          )}
-          {traceSteps.map((s, i) => (
-            <div key={i}>{s}</div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const FORM_DATA = {
   denture_status: ["使っている", "使っていない（初めて）"],
@@ -1704,7 +1638,6 @@ export default function Page() {
   };
   const [sending, setSending] = useState(false);
   const [printingPdf, setPrintingPdf] = useState(false);
-  const [debugError, setDebugError] = useState<string | null>(null);
   const [showReset, setShowReset] = useState(false);
   const [generateStartedAt, setGenerateStartedAt] = useState<number | null>(null);
 
@@ -1786,34 +1719,8 @@ export default function Page() {
       setPatientAnonId(restored.patientAnonId);
       setIssueDate(restored.issueDate);
       setFormData(restored.formData);
-      addTrace("0.ストレージから復元");
     }
   }, []);
-
-  // 💡 iOS Safari 等での未捕捉エラーを可視化する一時デバッグ機構
-  useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      const msg = `[window.onerror] ${event.message}`;
-      setDebugError(msg);
-      console.error(msg, event.error);
-    };
-    const handleRejection = (event: PromiseRejectionEvent) => {
-      const msg = `[unhandledrejection] ${String(event.reason)}`;
-      setDebugError(msg);
-      console.error(msg, event.reason);
-    };
-    window.addEventListener("error", handleError);
-    window.addEventListener("unhandledrejection", handleRejection);
-    return () => {
-      window.removeEventListener("error", handleError);
-      window.removeEventListener("unhandledrejection", handleRejection);
-    };
-  }, []);
-
-  // 💡 未捕捉エラー発生時はリセットボタンを表示
-  useEffect(() => {
-    if (debugError) setShowReset(true);
-  }, [debugError]);
 
   // 💡 生成リクエスト開始から15秒経っても結果が表示されない場合、リセットボタンを表示
   useEffect(() => {
@@ -1908,13 +1815,11 @@ export default function Page() {
       return;
     }
     setLoading(true);
-    clearTrace();
     setGenerateStartedAt(Date.now());
     showError(null);
     setResult(null);
     setPatientAnonId("");
     clearGeneratedResult();
-    addTrace("1.fetch送信");
 
     // 💡 判定テーブルで候補・価格・換算・フラグを確定（AIには結果のみ渡す）
     const decision =
@@ -1976,12 +1881,9 @@ export default function Page() {
         signal: controller.signal,
       });
       clearTimeout(fetchTimeout);
-      addTrace("2.レスポンス受信");
 
       const data = await res.json();
-      addTrace("3.パース完了");
       if (data.success) {
-        addTrace("4.PaginatedSheet描画開始");
         const generatedIssueDate = new Date().toLocaleDateString("ja-JP", {
           year: "numeric",
           month: "long",
@@ -2015,7 +1917,6 @@ export default function Page() {
       }
     } finally {
       setLoading(false);
-      addTrace("7.ローディング解除");
     }
   };
 
@@ -2379,18 +2280,14 @@ export default function Page() {
     header,
     footer,
     measureWidth = A4_WIDTH_PX,
-    addTrace,
   }: {
     blocks: SheetBlock[];
     header: React.ReactNode;
     footer: React.ReactNode;
     measureWidth?: number;
-    addTrace?: (step: string) => void;
   }) => {
     const [pages, setPages] = useState<SheetBlock[][] | null>(null);
     const measureRef = useRef<HTMLDivElement>(null);
-    const addTraceRef = useRef(addTrace);
-    addTraceRef.current = addTrace;
     const runCountRef = useRef(0);
 
     // 💡 フォント読み込み完了後に再測定し、フォント未読込の高さで確定しないようにする
@@ -2414,7 +2311,6 @@ export default function Page() {
       const timer = setTimeout(() => {
         if (pages === null) {
           console.warn("[PaginatedSheet] measurement timeout fallback");
-          addTraceRef.current?.("6'.測定タイムアウト（単一ページフォールバック）");
           setPages([blocks]);
         }
       }, 10000);
@@ -2423,26 +2319,22 @@ export default function Page() {
 
     useEffect(() => {
       runCountRef.current += 1;
-      addTraceRef.current?.("5.測定開始");
 
       // 💡 連続測定ループ防止：同一インスタンスで3回を超えて測定が走ったら単一ページに逃がす
       if (runCountRef.current > MAX_MEASURE_RUNS && pages === null) {
         console.warn(
           `[PaginatedSheet] too many measurement runs (${runCountRef.current}), fallback to single page`
         );
-        addTraceRef.current?.("6'''.測定ループ防止（単一ページフォールバック）");
         setPages([blocks]);
         return;
       }
 
       // 💡 フォント読み込み完了前は高さが未定のため、確定せずに待つ（fonts.ready解決後に再測定）
       if (!fontsReady) {
-        addTraceRef.current?.("5'.測定待機（fonts未読込）");
         return;
       }
 
       if (!measureRef.current) {
-        addTraceRef.current?.("6.測定完了 - measureRef未設定");
         return;
       }
       const measureContainer = measureRef.current;
@@ -2515,11 +2407,9 @@ export default function Page() {
         }
 
         setPages(grouped.length > 0 ? grouped : [[]]);
-        addTraceRef.current?.("6.測定完了");
       } catch (err: any) {
         console.error("[PaginatedSheet] measurement error:", err);
         // 測定失敗時は単一ページにフォールバック（表示切れ防止）
-        addTraceRef.current?.("6''.測定例外（単一ページフォールバック）");
         setPages([blocks]);
       }
     }, [blocks, header, footer, measureWidth, fontsReady]);
@@ -2907,7 +2797,6 @@ export default function Page() {
         blocks={blocks}
         header={<Header />}
         footer={<Footer />}
-        addTrace={addTrace}
       />
     );
   };
@@ -3207,7 +3096,6 @@ export default function Page() {
         blocks={blocks}
         header={<Header />}
         footer={<Footer />}
-        addTrace={addTrace}
       />
     );
   };
@@ -3711,9 +3599,6 @@ export default function Page() {
           )}
         </section>
       </div>
-
-      {/* 💡 iOS Safari 等での未捕捉エラー可視化＋トレース（一時デバッグ用） */}
-      <DebugPanel debugError={debugError} />
 
       {/* 💡 ローディング長時間化・エラー発生時の復帰手段 */}
       {showReset && (
