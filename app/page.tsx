@@ -1583,6 +1583,8 @@ export default function Page() {
   };
   const [sending, setSending] = useState(false);
   const [printingPdf, setPrintingPdf] = useState(false);
+  // 💡 動的ページ分割完了フラグ：PDF生成前に .sheet-page-portrait が存在することを保証
+  const [sheetPaginationReady, setSheetPaginationReady] = useState(false);
 
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
@@ -1811,7 +1813,28 @@ export default function Page() {
     const { toJpeg } = await import("html-to-image");
     const { jsPDF } = await import("jspdf");
 
-    const pages = document.querySelectorAll(".sheet-page-portrait");
+    // 💡 動的ページ分割完了を待つガード：.sheet-page-portrait が出現するまで最大5秒ポーリング
+    //    測定用コンテナ（data-paginated-sheet-measure）は除外する
+    const waitForPages = async (
+      timeoutMs = 5000,
+      intervalMs = 100,
+    ): Promise<HTMLElement[]> => {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const found = Array.from(
+          document.querySelectorAll(".sheet-page-portrait")
+        ).filter(
+          (el) => !el.hasAttribute("data-paginated-sheet-measure")
+        ) as HTMLElement[];
+        if (found.length > 0) return found;
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      }
+      return Array.from(document.querySelectorAll(".sheet-page-portrait")).filter(
+        (el) => !el.hasAttribute("data-paginated-sheet-measure")
+      ) as HTMLElement[];
+    };
+
+    const pages = await waitForPages();
     if (pages.length === 0) {
       return null;
     }
@@ -2129,16 +2152,21 @@ export default function Page() {
     header,
     footer,
     measureWidth = A4_WIDTH_PX,
+    onReady,
   }: {
     blocks: SheetBlock[];
     header: React.ReactNode;
     footer: React.ReactNode;
     measureWidth?: number;
+    onReady?: (ready: boolean) => void;
   }) => {
     const [pages, setPages] = useState<SheetBlock[][] | null>(null);
     const measureRef = useRef<HTMLDivElement>(null);
+    const onReadyRef = useRef(onReady);
+    onReadyRef.current = onReady;
 
     useEffect(() => {
+      onReadyRef.current?.(false);
       if (!measureRef.current) return;
       const measureContainer = measureRef.current;
 
@@ -2209,6 +2237,11 @@ export default function Page() {
       }
 
       setPages(grouped.length > 0 ? grouped : [[]]);
+      onReadyRef.current?.(true);
+
+      return () => {
+        onReadyRef.current?.(false);
+      };
     }, [blocks, header, footer, measureWidth]);
 
     // 測定中は非表示の測定コンテナのみをレンダリング（ちらつき防止）
@@ -2216,6 +2249,8 @@ export default function Page() {
       return (
         <div
           ref={measureRef}
+          className="sheet-page-portrait"
+          data-paginated-sheet-measure
           aria-hidden="true"
           style={{
             position: "fixed",
@@ -2224,6 +2259,10 @@ export default function Page() {
             width: `${measureWidth}px`,
             visibility: "hidden",
             pointerEvents: "none",
+            minHeight: "auto",
+            height: "auto",
+            padding: "12mm",
+            boxSizing: "border-box",
           }}
         >
           <div data-measure-part="header" style={{ width: `${measureWidth}px` }}>
@@ -2361,11 +2400,15 @@ export default function Page() {
     const Header = () => (
       <div className="border-b-[1.5px] border-b-ink pb-3 mb-5">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
+          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink">
             {sheetTitle}
           </h1>
           {cleanClinicName && (
-            <div className="text-right font-bold text-ink text-[11px] shrink-0">
+            <div
+              className={`text-right font-bold text-ink shrink-0 whitespace-nowrap ${
+                cleanClinicName.length > 20 ? "text-[9px]" : "text-[11px]"
+              }`}
+            >
               {cleanClinicName}
             </div>
           )}
@@ -2374,7 +2417,7 @@ export default function Page() {
           <div className="text-[8px] tracking-[0.3em] text-accent font-bold">
             AI OBJECTIVE ANALYSIS
           </div>
-          <div className="text-right text-[9px] leading-relaxed shrink-0 text-ink-soft flex items-center gap-3">
+          <div className="text-right text-[9px] leading-relaxed shrink-0 whitespace-nowrap text-ink-soft flex items-center gap-3">
             <span>発行日: {issueDate}</span>
             {staffName.trim() && <span>担当: {staffName.trim()}</span>}
             {patientAnonId && <span>管理ID: {patientAnonId}</span>}
@@ -2575,6 +2618,7 @@ export default function Page() {
         blocks={blocks}
         header={<Header />}
         footer={<Footer />}
+        onReady={setSheetPaginationReady}
       />
     );
   };
@@ -2654,11 +2698,15 @@ export default function Page() {
     const Header = () => (
       <div className="border-b-[1.5px] border-b-ink pb-3 mb-5">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
+          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink">
             {sheetTitle}
           </h1>
           {cleanClinicName && (
-            <div className="text-right font-bold text-ink text-[11px] shrink-0">
+            <div
+              className={`text-right font-bold text-ink shrink-0 whitespace-nowrap ${
+                cleanClinicName.length > 20 ? "text-[9px]" : "text-[11px]"
+              }`}
+            >
               {cleanClinicName}
             </div>
           )}
@@ -2667,7 +2715,7 @@ export default function Page() {
           <div className="text-[8px] tracking-[0.3em] text-accent font-bold">
             AI OBJECTIVE ANALYSIS
           </div>
-          <div className="text-right text-[9px] leading-relaxed shrink-0 text-ink-soft flex items-center gap-3">
+          <div className="text-right text-[9px] leading-relaxed shrink-0 whitespace-nowrap text-ink-soft flex items-center gap-3">
             <span>発行日: {issueDate}</span>
             {staffName.trim() && <span>担当: {staffName.trim()}</span>}
             {patientAnonId && <span>管理ID: {patientAnonId}</span>}
@@ -2861,6 +2909,7 @@ export default function Page() {
         blocks={blocks}
         header={<Header />}
         footer={<Footer />}
+        onReady={setSheetPaginationReady}
       />
     );
   };
