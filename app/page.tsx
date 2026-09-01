@@ -195,8 +195,13 @@ type PersistedResult = {
 
 const saveGeneratedResult = (data: PersistedResult) => {
   try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
+    const payload = JSON.stringify(data);
+    addTrace(`S-INFO: payload=${payload.length} chars`);
+    sessionStorage.setItem(SESSION_STORAGE_KEY, payload);
+    addTrace("S.sessionStorage保存完了");
   } catch (e) {
+    const errName = e instanceof Error ? e.name : String(e);
+    addTrace(`S-ERR: ${errName}`);
     console.error("[sessionStorage save error]", e);
   }
 };
@@ -204,7 +209,11 @@ const saveGeneratedResult = (data: PersistedResult) => {
 const loadGeneratedResult = (): PersistedResult | null => {
   try {
     const json = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (!json) return null;
+    if (!json) {
+      addTrace("R-INFO: sessionStorage空");
+      return null;
+    }
+    addTrace(`R-INFO: payload=${json.length} chars`);
     const parsed = JSON.parse(json) as Partial<PersistedResult>;
     if (
       typeof parsed.patientSheet === "string" &&
@@ -213,6 +222,7 @@ const loadGeneratedResult = (): PersistedResult | null => {
       parsed.formData &&
       (parsed.formData.mode === "denture" || parsed.formData.mode === "crown")
     ) {
+      addTrace("R.sessionStorage復元完了");
       return {
         patientSheet: parsed.patientSheet,
         talkScript: parsed.talkScript,
@@ -221,7 +231,10 @@ const loadGeneratedResult = (): PersistedResult | null => {
         formData: parsed.formData,
       };
     }
+    addTrace("R-ERR: 形式不正");
   } catch (e) {
+    const errName = e instanceof Error ? e.name : String(e);
+    addTrace(`R-ERR: ${errName}`);
     console.error("[sessionStorage load error]", e);
   }
   return null;
@@ -1982,7 +1995,6 @@ export default function Page() {
           issueDate: generatedIssueDate,
           formData: { ...formData },
         });
-        addTrace("S.sessionStorage保存完了");
       } else {
         showError("AI生成エラー: " + (data.error || "通信エラー"));
       }
