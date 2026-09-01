@@ -1734,6 +1734,35 @@ export default function Page() {
     return () => clearTimeout(timer);
   }, [generateStartedAt, result]);
 
+  // 💡 iOS Safari の bfcache（Page Cache）から凍結復帰した場合の復帰処理
+  useEffect(() => {
+    const handler = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        // 凍結された状態のタイマー・通信中フラグを安全な初期状態に戻す
+        setLoading(false);
+        setGenerateStartedAt(null);
+        setShowReset(false);
+        setSending(false);
+        setPrintingPdf(false);
+        setLoadingStep(0);
+
+        // sessionStorage に保存された生成結果があれば復元
+        const restored = loadGeneratedResult();
+        if (restored) {
+          setResult({
+            patientSheet: restored.patientSheet,
+            talkScript: restored.talkScript,
+          });
+          setPatientAnonId(restored.patientAnonId);
+          setIssueDate(restored.issueDate);
+          setFormData(restored.formData);
+        }
+      }
+    };
+    window.addEventListener("pageshow", handler);
+    return () => window.removeEventListener("pageshow", handler);
+  }, []);
+
   useEffect(() => {
     const updateScale = () => {
       if (!previewAreaRef.current) return;
