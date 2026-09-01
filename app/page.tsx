@@ -594,12 +594,12 @@ function DentureComparisonTable({
       self: content.experience,
     },
     {
-      item: "想定通院回数（レンジ）",
+      item: "想定通院回数",
       insurance: "3〜5回程度",
       self: content.visits,
     },
     {
-      item: "費用（レンジ）",
+      item: "費用",
       insurance: "保険適用（1〜3割負担）",
       self: content.cost,
     },
@@ -1811,47 +1811,73 @@ export default function Page() {
     const { toJpeg } = await import("html-to-image");
     const { jsPDF } = await import("jspdf");
 
-    const originalScale = fitScale;
-    setFitScale(1);
-
-    // DOMのレイアウト更新を待つ
-    // ※「PDFで開く」は新タブがフォーカスを奪うため元タブがバックグラウンド化し、
-    //   requestAnimationFrame が停止して永久に解決しない事故が起きる。
-    //   setTimeout はバックグラウンドでも発火するため併用し、必ず先に進める。
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-      setTimeout(() => resolve(), 300); // フォーカスが外れても300msで必ず進む保険
-    });
-
     const pages = document.querySelectorAll(".sheet-page-portrait");
     if (pages.length === 0) {
-      setFitScale(originalScale);
       return null;
     }
 
+    // 💡 オフスクリーン固定幅ラッパー：モバイルでもPCと同じ800pxレイアウトでキャプチャ
+    //    画面幅（約390px）のレイアウトがPDFに焼き付くのを防ぐ
+    const OFFSCREEN_WIDTH = 800;
+    const OFFSCREEN_HEIGHT = Math.round(
+      A4_HEIGHT_PX * (OFFSCREEN_WIDTH / A4_WIDTH_PX),
+    );
+    const offscreenWrapper = document.createElement("div");
+    offscreenWrapper.style.position = "fixed";
+    offscreenWrapper.style.left = "-9999px";
+    offscreenWrapper.style.top = "0";
+    offscreenWrapper.style.width = `${OFFSCREEN_WIDTH}px`;
+    offscreenWrapper.style.zIndex = "-1";
+    document.body.appendChild(offscreenWrapper);
+
     const pdf = new jsPDF("p", "mm", "a4");
 
-    for (let i = 0; i < pages.length; i++) {
-      const pageEl = pages[i] as HTMLElement;
+    try {
+      for (let i = 0; i < pages.length; i++) {
+        const pageEl = pages[i] as HTMLElement;
 
-      const dataUrl = await toJpeg(pageEl, {
-        quality: 0.95,
-        pixelRatio: 3,
-        backgroundColor: "#ffffff",
-        width: A4_WIDTH_PX,
-        height: A4_HEIGHT_PX,
-        style: {
-          transform: "scale(1)",
-          transformOrigin: "top left",
-          margin: "0",
-        },
-      });
+        // 元のDOMをそのまま使わず、固定幅オフスクリーンにクローンしてレイアウトを統一
+        const clone = pageEl.cloneNode(true) as HTMLElement;
+        clone.style.width = `${OFFSCREEN_WIDTH}px`;
+        clone.style.height = `${OFFSCREEN_HEIGHT}px`;
+        clone.style.transform = "none";
+        clone.style.transformOrigin = "top left";
+        clone.style.margin = "0";
+        clone.style.maxWidth = "none";
+        clone.style.position = "relative";
+        offscreenWrapper.innerHTML = "";
+        offscreenWrapper.appendChild(clone);
 
-      if (i > 0) pdf.addPage();
-      pdf.addImage(dataUrl, "JPEG", 0, 0, 210, 297);
+        // DOMのレイアウト更新を待つ
+        // ※「PDFで開く」は新タブがフォーカスを奪うため元タブがバックグラウンド化し、
+        //   requestAnimationFrame が停止して永久に解決しない事故が起きる。
+        //   setTimeout はバックグラウンドでも発火するため併用し、必ず先に進める。
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          setTimeout(() => resolve(), 300); // フォーカスが外れても300msで必ず進む保険
+        });
+
+        // モバイル高DPR対策：pixelRatio は最大2までに抑え、ファイルサイズを抑制
+        const dataUrl = await toJpeg(clone, {
+          quality: 0.95,
+          pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+          backgroundColor: "#ffffff",
+          width: OFFSCREEN_WIDTH,
+          height: OFFSCREEN_HEIGHT,
+          style: {
+            transform: "scale(1)",
+            transformOrigin: "top left",
+            margin: "0",
+          },
+        });
+
+        if (i > 0) pdf.addPage();
+        pdf.addImage(dataUrl, "JPEG", 0, 0, 210, 297);
+      }
+    } finally {
+      document.body.removeChild(offscreenWrapper);
     }
 
-    setFitScale(originalScale);
     return pdf.output("blob");
   };
 
