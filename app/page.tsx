@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Activity,
   Building2,
@@ -15,6 +15,9 @@ import {
 // A4縦 @96dpi: 210mm×297mm ≒ 794×1123px
 const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123;
+
+// 💡 生成結果の一時永続化用キー（PDF化後のiOS Safari復帰用。トークンは保存しない）
+const SESSION_STORAGE_KEY = "denpist-ai-generated-result";
 
 const FORM_DATA = {
   denture_status: ["使っている", "使っていない（初めて）"],
@@ -120,6 +123,53 @@ type FormState = Omit<FormStateBase, "mode"> & {
   mode: "denture" | "crown";
 };
 type CrownFormState = FormState & { mode: "crown" };
+
+// 💡 生成結果の一時永続化／復元ヘルパー（PDF化後のブラウザ復帰対策。トークンは保存しない）
+// 患者の相談内容を端末に永続保存しないため、sessionStorage のみを使用する。
+type PersistedResult = {
+  patientSheet: string;
+  talkScript: string;
+  patientAnonId: string;
+  formData: FormState;
+};
+
+const saveGeneratedResult = (data: PersistedResult) => {
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.error("[sessionStorage save error]", e);
+  }
+};
+
+const loadGeneratedResult = (): PersistedResult | null => {
+  try {
+    const json = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!json) return null;
+    const parsed = JSON.parse(json) as Partial<PersistedResult>;
+    if (
+      typeof parsed.patientSheet === "string" &&
+      typeof parsed.talkScript === "string" &&
+      parsed.formData &&
+      (parsed.formData.mode === "denture" || parsed.formData.mode === "crown")
+    ) {
+      return {
+        patientSheet: parsed.patientSheet,
+        talkScript: parsed.talkScript,
+        patientAnonId: parsed.patientAnonId || "",
+        formData: parsed.formData,
+      };
+    }
+  } catch (e) {
+    console.error("[sessionStorage load error]", e);
+  }
+  return null;
+};
+
+const clearGeneratedResult = () => {
+  try {
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {}
+};
 
 const INITIAL_CROWN_FORM_DATA: CrownFormState = {
   ...INITIAL_FORM_DATA,
@@ -1587,6 +1637,15 @@ export default function Page() {
   const [sheetPaginationReady, setSheetPaginationReady] = useState(false);
   const [debugError, setDebugError] = useState<string | null>(null);
   const [showReset, setShowReset] = useState(false);
+  const [traceSteps, setTraceSteps] = useState<string[]>([]);
+  const [generateStartedAt, setGenerateStartedAt] = useState<number | null>(null);
+
+  const addTrace = useCallback((step: string) => {
+    setTraceSteps((prev) => [
+      ...prev,
+      `${new Date().toLocaleTimeString("ja-JP", { hour12: false })} ${step}`,
+    ]);
+  }, []);
 
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
@@ -1654,6 +1713,19 @@ export default function Page() {
       window.matchMedia("(display-mode: standalone)").matches ||
         (window.navigator as any).standalone === true,
     );
+
+    // 4. PDF化後のブラウザ復帰対策：前回の生成結果があれば復元（トークンは保存しない）
+    // 患者の相談内容を端末に永続保存しないため、sessionStorage のみ使用する。
+    const restored = loadGeneratedResult();
+    if (restored) {
+      setResult({
+        patientSheet: restored.patientSheet,
+        talkScript: restored.talkScript,
+      });
+      setPatientAnonId(restored.patientAnonId);
+      setFormData(restored.formData);
+      addTrace("0.ストレージから復元");
+    }
   }, []);
 
   // 💡 iOS Safari 等での未捕捉エラーを可視化する一時デバッグ機構
@@ -1681,6 +1753,17 @@ export default function Page() {
     if (debugError) setShowReset(true);
   }, [debugError]);
 
+  // 💡 生成リクエスト開始から15秒経っても結果が表示されない場合、リセットボタンを表示
+  useEffect(() => {
+    if (!generateStartedAt) return;
+    if (result) {
+      setGenerateStartedAt(null);
+      return;
+    }
+    const timer = setTimeout(() => setShowReset(true), 15000);
+    return () => clearTimeout(timer);
+  }, [generateStartedAt, result]);
+
   useEffect(() => {
     const updateScale = () => {
       if (!previewAreaRef.current) return;
@@ -1703,14 +1786,9 @@ export default function Page() {
           prev < LOADING_STEPS.length - 1 ? prev + 1 : prev,
         );
       }, 4000);
-      // 💡 15秒以上ローディングが続く場合、利用者が復帰できるようリセットボタンを表示
-      resetTimeout = setTimeout(() => setShowReset(true), 15000);
-    } else {
-      setShowReset(false);
     }
     return () => {
       clearInterval(interval);
-      clearTimeout(resetTimeout);
     };
   }, [loading]);
 
@@ -1768,8 +1846,13 @@ export default function Page() {
       return;
     }
     setLoading(true);
+    setTraceSteps([]);
+    setGenerateStartedAt(Date.now());
     showError(null);
     setResult(null);
+    setPatientAnonId("");
+    clearGeneratedResult();
+    addTrace("1.fetch送信");
 
     // 💡 判定テーブルで候補・価格・換算・フラグを確定（AIには結果のみ渡す）
     const decision =
@@ -1831,14 +1914,25 @@ export default function Page() {
         signal: controller.signal,
       });
       clearTimeout(fetchTimeout);
+      addTrace("2.レスポンス受信");
 
       const data = await res.json();
+      addTrace("3.パース完了");
       if (data.success) {
+        addTrace("4.PaginatedSheet描画開始");
         setResult({
           patientSheet: data.patientSheet,
           talkScript: data.talkScript,
         });
         setPatientAnonId(data.patientAnonId || "");
+
+        // 💡 PDF化後のブラウザ復帰対策：生成結果を永続化（トークンは含めない）
+        saveGeneratedResult({
+          patientSheet: data.patientSheet,
+          talkScript: data.talkScript,
+          patientAnonId: data.patientAnonId || "",
+          formData: { ...formData },
+        });
       } else {
         showError("AI生成エラー: " + (data.error || "通信エラー"));
       }
@@ -1851,6 +1945,7 @@ export default function Page() {
       }
     } finally {
       setLoading(false);
+      addTrace("7.ローディング解除");
     }
   };
 
@@ -1970,23 +2065,21 @@ export default function Page() {
   const handleOpenPrintPdf = async () => {
     setPrintingPdf(true);
     try {
-      const pdfBlob = await buildSheetPdfBlob(); // ← 元タブがフォーカスを持つ間に生成を完結させる
+      const pdfBlob = await buildSheetPdfBlob();
       if (!pdfBlob) {
         alert("PDF化する領域が見つかりません。先にシートを生成してください。");
         return;
       }
       const url = URL.createObjectURL(pdfBlob);
-      const win = window.open(url, "_blank");
-      if (!win) {
-        // ポップアップブロック時はダウンロードにフォールバック
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "counseling-sheet.pdf";
-        a.click();
-        alert(
-          "新しいタブがブロックされたため、PDFをダウンロードしました。ダウンロードしたPDFを開いて印刷してください。",
-        );
-      }
+      // 💡 iOS Safari では新タブ遷移すると元画面に戻れないため、原則 <a download> 方式を使用
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `AI客観分析レポート_${patientAnonId || ""}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // iOS で download 属性が無視された場合の保険：少し待ってから revoke
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err: any) {
       alert("PDF生成でエラーが発生しました。詳細: " + err.message);
     } finally {
@@ -2198,21 +2291,40 @@ export default function Page() {
     footer,
     measureWidth = A4_WIDTH_PX,
     onReady,
+    addTrace,
   }: {
     blocks: SheetBlock[];
     header: React.ReactNode;
     footer: React.ReactNode;
     measureWidth?: number;
     onReady?: (ready: boolean) => void;
+    addTrace?: (step: string) => void;
   }) => {
     const [pages, setPages] = useState<SheetBlock[][] | null>(null);
     const measureRef = useRef<HTMLDivElement>(null);
     const onReadyRef = useRef(onReady);
     onReadyRef.current = onReady;
+    const addTraceRef = useRef(addTrace);
+    addTraceRef.current = addTrace;
+
+    // 💡 10秒タイムアウトで測定が完了しない場合は単一ページにフォールバック
+    useEffect(() => {
+      const timer = setTimeout(() => {
+        if (pages === null) {
+          console.warn("[PaginatedSheet] measurement timeout fallback");
+          addTraceRef.current?.("6'.測定タイムアウト（単一ページフォールバック）");
+          setPages([blocks]);
+          onReadyRef.current?.(true);
+        }
+      }, 10000);
+      return () => clearTimeout(timer);
+    }, [blocks, pages]);
 
     useEffect(() => {
       onReadyRef.current?.(false);
+      addTraceRef.current?.("5.測定開始");
       if (!measureRef.current) {
+        addTraceRef.current?.("6.測定完了(onReady) - measureRef未設定");
         onReadyRef.current?.(true);
         return;
       }
@@ -2286,10 +2398,12 @@ export default function Page() {
         }
 
         setPages(grouped.length > 0 ? grouped : [[]]);
+        addTraceRef.current?.("6.測定完了(onReady)");
         onReadyRef.current?.(true);
       } catch (err: any) {
         console.error("[PaginatedSheet] measurement error:", err);
         // 測定失敗時は単一ページにフォールバック（表示切れ防止）
+        addTraceRef.current?.("6''.測定例外（単一ページフォールバック）");
         setPages([blocks]);
         onReadyRef.current?.(true);
       }
@@ -2674,6 +2788,7 @@ export default function Page() {
         header={<Header />}
         footer={<Footer />}
         onReady={setSheetPaginationReady}
+        addTrace={addTrace}
       />
     );
   };
@@ -2965,6 +3080,7 @@ export default function Page() {
         header={<Header />}
         footer={<Footer />}
         onReady={setSheetPaginationReady}
+        addTrace={addTrace}
       />
     );
   };
@@ -3469,11 +3585,25 @@ export default function Page() {
         </section>
       </div>
 
-      {/* 💡 iOS Safari 等での未捕捉エラー可視化（一時デバッグ用） */}
-      {debugError && (
+      {/* 💡 iOS Safari 等での未捕捉エラー可視化＋トレース（一時デバッグ用） */}
+      {(debugError || traceSteps.length > 0) && (
         <div className="fixed bottom-2 left-2 right-2 z-[9999] bg-red-600 text-white text-[11px] p-3 rounded-lg shadow-lg break-all max-h-[40vh] overflow-auto">
-          <strong>DEBUG ERROR</strong>
-          <div className="mt-1 whitespace-pre-wrap">{debugError}</div>
+          {debugError && (
+            <>
+              <strong>DEBUG ERROR</strong>
+              <div className="mt-1 mb-2 whitespace-pre-wrap">{debugError}</div>
+            </>
+          )}
+          {traceSteps.length > 0 && (
+            <>
+              <strong>TRACE</strong>
+              <div className="mt-1 space-y-0.5">
+                {traceSteps.map((s, i) => (
+                  <div key={i}>{s}</div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -3482,7 +3612,10 @@ export default function Page() {
         <div className="fixed bottom-2 left-2 right-2 z-[9998] bg-amber-50 border border-amber-300 text-amber-900 text-[11px] p-3 rounded-lg shadow-lg text-center">
           <p className="mb-2">操作が長時間続いているか、エラーが発生しました。</p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              clearGeneratedResult();
+              window.location.reload();
+            }}
             className="px-4 py-2 bg-ink text-white text-xs font-bold rounded-lg hover:bg-accent transition"
           >
             もう一度お試しください（画面を再読み込みします）
