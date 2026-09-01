@@ -196,6 +196,7 @@ type PersistedResult = {
   patientSheet: string;
   talkScript: string;
   patientAnonId: string;
+  issueDate: string;
   formData: FormState;
 };
 
@@ -215,6 +216,7 @@ const loadGeneratedResult = (): PersistedResult | null => {
     if (
       typeof parsed.patientSheet === "string" &&
       typeof parsed.talkScript === "string" &&
+      typeof parsed.issueDate === "string" &&
       parsed.formData &&
       (parsed.formData.mode === "denture" || parsed.formData.mode === "crown")
     ) {
@@ -222,6 +224,7 @@ const loadGeneratedResult = (): PersistedResult | null => {
         patientSheet: parsed.patientSheet,
         talkScript: parsed.talkScript,
         patientAnonId: parsed.patientAnonId || "",
+        issueDate: parsed.issueDate,
         formData: parsed.formData,
       };
     }
@@ -1687,6 +1690,8 @@ export default function Page() {
   } | null>(null);
   // 💡 生成時に発番される管理ID（医院へ送信のメール本文で使用するため保持する）
   const [patientAnonId, setPatientAnonId] = useState("");
+  // 💡 生成時の発行日（PDFファイル名・シートヘッダー共通。sessionStorage 復元対象）
+  const [issueDate, setIssueDate] = useState("");
   const [activeTab, setActiveTab] = useState<"patient" | "talk">("patient");
   // 💡 トークカンペの表示モード。チェアサイドで一瞥できる「要点」を初期値にし、学習・時間がある時は「全文」に切替
   const [talkView, setTalkView] = useState<"keyword" | "full">("keyword");
@@ -1779,6 +1784,7 @@ export default function Page() {
         talkScript: restored.talkScript,
       });
       setPatientAnonId(restored.patientAnonId);
+      setIssueDate(restored.issueDate);
       setFormData(restored.formData);
       addTrace("0.ストレージから復元");
     }
@@ -1976,17 +1982,25 @@ export default function Page() {
       addTrace("3.パース完了");
       if (data.success) {
         addTrace("4.PaginatedSheet描画開始");
+        const generatedIssueDate = new Date().toLocaleDateString("ja-JP", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          timeZone: "Asia/Tokyo",
+        });
         setResult({
           patientSheet: data.patientSheet,
           talkScript: data.talkScript,
         });
         setPatientAnonId(data.patientAnonId || "");
+        setIssueDate(generatedIssueDate);
 
         // 💡 PDF化後のブラウザ復帰対策：生成結果を永続化（トークンは含めない）
         saveGeneratedResult({
           patientSheet: data.patientSheet,
           talkScript: data.talkScript,
           patientAnonId: data.patientAnonId || "",
+          issueDate: generatedIssueDate,
           formData: { ...formData },
         });
       } else {
@@ -2033,6 +2047,14 @@ export default function Page() {
     const pages = await waitForPages();
     if (pages.length === 0) {
       return null;
+    }
+
+    // 💡 フォント読み込み完了を待ってからキャプチャし、レイアウトずれを防止
+    if (typeof document !== "undefined" && document.fonts) {
+      await Promise.race([
+        document.fonts.ready,
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ]);
     }
 
     // 💡 オフスクリーン固定幅ラッパー：モバイルでもPCと同じ800pxレイアウトでキャプチャ
@@ -2130,7 +2152,12 @@ export default function Page() {
       // 💡 iOS Safari では新タブ遷移すると元画面に戻れないため、原則 <a download> 方式を使用
       const a = document.createElement("a");
       a.href = url;
-      a.download = `AI客観分析レポート_${patientAnonId || ""}.pdf`;
+      const filenameDate = issueDate
+        ? issueDate.replace(/(\d{4})年(\d{1,2})月(\d{1,2})日/, (_, y, m, d) =>
+            `${y}${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}`,
+          )
+        : "";
+      a.download = `AI客観分析レポート_${filenameDate}_${patientAnonId || ""}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -2179,8 +2206,11 @@ export default function Page() {
       const pdfData = btoa(binary);
 
       // ファイル名用の日付（YYYYMMDD / 日本時間）
-      const now = new Date();
-      const dateForFilename = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+      const dateForFilename = issueDate
+        ? issueDate.replace(/(\d{4})年(\d{1,2})月(\d{1,2})日/, (_, y, m, d) =>
+            `${y}${String(m).padStart(2, "0")}${String(d).padStart(2, "0")}`,
+          )
+        : `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}${String(new Date().getDate()).padStart(2, "0")}`;
       const fileName = `AI客観分析レポート_${dateForFilename}_${patientAnonId || ""}.pdf`;
 
       const res = await fetch("/api/send-pdf", {
@@ -2191,12 +2221,14 @@ export default function Page() {
           accessToken: token,
           fileName,
           patientAnonId: patientAnonId || "",
-          issueDate: new Date().toLocaleDateString("ja-JP", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-            timeZone: "Asia/Tokyo",
-          }),
+          issueDate:
+            issueDate ||
+            new Date().toLocaleDateString("ja-JP", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              timeZone: "Asia/Tokyo",
+            }),
         }),
       });
 
@@ -2361,6 +2393,22 @@ export default function Page() {
     addTraceRef.current = addTrace;
     const runCountRef = useRef(0);
 
+    // 💡 フォント読み込み完了後に再測定し、フォント未読込の高さで確定しないようにする
+    const [fontsReady, setFontsReady] = useState(false);
+    useEffect(() => {
+      let cancelled = false;
+      if (typeof document !== "undefined" && document.fonts) {
+        document.fonts.ready.then(() => {
+          if (!cancelled) setFontsReady(true);
+        });
+      } else {
+        setFontsReady(true);
+      }
+      return () => {
+        cancelled = true;
+      };
+    }, []);
+
     // 💡 10秒タイムアウトで測定が完了しない場合は単一ページにフォールバック
     useEffect(() => {
       const timer = setTimeout(() => {
@@ -2384,6 +2432,12 @@ export default function Page() {
         );
         addTraceRef.current?.("6'''.測定ループ防止（単一ページフォールバック）");
         setPages([blocks]);
+        return;
+      }
+
+      // 💡 フォント読み込み完了前は高さが未定のため、確定せずに待つ（fonts.ready解決後に再測定）
+      if (!fontsReady) {
+        addTraceRef.current?.("5'.測定待機（fonts未読込）");
         return;
       }
 
@@ -2468,7 +2522,7 @@ export default function Page() {
         addTraceRef.current?.("6''.測定例外（単一ページフォールバック）");
         setPages([blocks]);
       }
-    }, [blocks, header, footer, measureWidth]);
+    }, [blocks, header, footer, measureWidth, fontsReady]);
 
     // 測定中は非表示の測定コンテナのみをレンダリング（ちらつき防止）
     if (!pages) {
@@ -2575,13 +2629,6 @@ export default function Page() {
       ? "【AI客観分析レポート】ご希望の整理と次のステップ"
       : "【AI客観分析レポート】お口の治療選択肢の比較";
 
-    const issueDate = new Date().toLocaleDateString("ja-JP", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "Asia/Tokyo",
-    });
-
     // 💡 セクション見出し（デザイン刷新案A）: 明朝体＋小さな色面マーカー＋下罫線。アイコン・青バーは廃止
     const SectionHead = ({
       children,
@@ -2598,7 +2645,7 @@ export default function Page() {
         <span
           className={`inline-block h-3 w-3 shrink-0 ${gold ? "bg-gold" : "bg-accent"}`}
         />
-        <span className="font-serif-jp text-[15px] font-bold text-ink tracking-wide">
+        <span className="font-serif-jp text-[15px] font-bold text-ink tracking-wide whitespace-nowrap">
           {children}
         </span>
       </div>
@@ -2626,7 +2673,7 @@ export default function Page() {
     const Header = () => (
       <div className="border-b-[1.5px] border-b-ink pb-3 mb-5">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink">
+          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
             {sheetTitle}
           </h1>
           {cleanClinicName && (
@@ -2919,7 +2966,7 @@ export default function Page() {
         <span
           className={`inline-block h-3 w-3 shrink-0 ${gold ? "bg-gold" : "bg-accent"}`}
         />
-        <span className="font-serif-jp text-[15px] font-bold text-ink tracking-wide">
+        <span className="font-serif-jp text-[15px] font-bold text-ink tracking-wide whitespace-nowrap">
           {children}
         </span>
       </div>
@@ -2930,17 +2977,11 @@ export default function Page() {
       .filter((text): text is string => !!text);
 
     // 💡 ヘッダー情報はプレースホルダではなくコード側で確定（義歯版と同じ構成）
-    const issueDate = new Date().toLocaleDateString("ja-JP", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "Asia/Tokyo",
-    });
 
     const Header = () => (
       <div className="border-b-[1.5px] border-b-ink pb-3 mb-5">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink">
+          <h1 className="font-serif-jp text-[15px] font-bold tracking-wide text-ink whitespace-nowrap">
             {sheetTitle}
           </h1>
           {cleanClinicName && (
