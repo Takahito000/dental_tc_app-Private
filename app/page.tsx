@@ -2408,6 +2408,7 @@ export default function Page() {
       const timer = setTimeout(() => {
         if (pages === null) {
           console.warn("[PaginatedSheet] measurement timeout fallback");
+          addTrace("D1d.10秒タイムアウトフォールバック");
           setPages([blocks]);
         }
       }, 10000);
@@ -2416,24 +2417,30 @@ export default function Page() {
 
     useEffect(() => {
       runCountRef.current += 1;
+      addTrace(`D1.effect発火(${runCountRef.current})`);
 
       // 💡 連続測定ループ防止：同一インスタンスで3回を超えて測定が走ったら単一ページに逃がす
       if (runCountRef.current > MAX_MEASURE_RUNS && pages === null) {
         console.warn(
           `[PaginatedSheet] too many measurement runs (${runCountRef.current}), fallback to single page`
         );
+        addTrace("D1b.ループ上限到達フォールバック");
         setPages([blocks]);
         return;
       }
 
       // 💡 フォント読み込み完了前は高さが未定のため、確定せずに待つ（fonts.ready解決後に再測定）
       if (!fontsReady) {
+        addTrace("D1c.fonts未読込で待機");
         return;
       }
+      addTrace("D2.fontsReady=true確認");
 
       if (!measureRef.current) {
+        addTrace("D2b.measureRef未設定で終了");
         return;
       }
+      addTrace("D3.測定ループ開始");
       const measureContainer = measureRef.current;
 
       try {
