@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo, useSyncExternalStore } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Activity,
   Building2,
@@ -18,65 +18,6 @@ const A4_HEIGHT_PX = 1123;
 
 // 💡 生成結果の一時永続化用キー（PDF化後のiOS Safari復帰用。トークンは保存しない）
 const SESSION_STORAGE_KEY = "denpist-ai-generated-result";
-
-// 💡 一時トレース（Page 再レンダーを起こさないモジュール級ストア）
-type TraceListener = () => void;
-const traceStore = {
-  steps: [] as string[],
-  listeners: new Set<TraceListener>(),
-  add(label: string) {
-    const entry = `${new Date().toLocaleTimeString("ja-JP", { hour12: false })} ${label}`;
-    this.steps = [...this.steps, entry];
-    this.listeners.forEach((l) => l());
-  },
-  clear() {
-    this.steps = [];
-    this.listeners.forEach((l) => l());
-  },
-  subscribe(listener: TraceListener) {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  },
-  getSnapshot() {
-    return this.steps;
-  },
-};
-const addTrace = (label: string) => traceStore.add(label);
-const clearTrace = () => traceStore.clear();
-
-const TracePanel = () => {
-  const steps = useSyncExternalStore(
-    traceStore.subscribe.bind(traceStore),
-    traceStore.getSnapshot.bind(traceStore),
-  );
-  const [expanded, setExpanded] = useState(false);
-  if (steps.length === 0) return null;
-  return (
-    <div className="fixed bottom-2 left-2 right-2 z-[9999] bg-gray-100 text-gray-500 text-[11px] rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full px-3 py-1.5 text-left font-bold flex items-center justify-between"
-      >
-        {expanded ? (
-          <>
-            <span>DEBUG ({steps.length})</span>
-            <span>−</span>
-          </>
-        ) : (
-          <span>DEBUG</span>
-        )}
-      </button>
-      {expanded && (
-        <div className="px-3 pb-2 overflow-auto max-h-[100px] space-y-0.5 break-all">
-          {steps.map((s, i) => (
-            <div key={i}>{s}</div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 const FORM_DATA = {
   denture_status: ["使っている", "使っていない（初めて）"],
@@ -195,13 +136,8 @@ type PersistedResult = {
 
 const saveGeneratedResult = (data: PersistedResult) => {
   try {
-    const payload = JSON.stringify(data);
-    addTrace(`S-INFO: payload=${payload.length} chars`);
-    sessionStorage.setItem(SESSION_STORAGE_KEY, payload);
-    addTrace("S.sessionStorage保存完了");
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(data));
   } catch (e) {
-    const errName = e instanceof Error ? e.name : String(e);
-    addTrace(`S-ERR: ${errName}`);
     console.error("[sessionStorage save error]", e);
   }
 };
@@ -209,11 +145,7 @@ const saveGeneratedResult = (data: PersistedResult) => {
 const loadGeneratedResult = (): PersistedResult | null => {
   try {
     const json = sessionStorage.getItem(SESSION_STORAGE_KEY);
-    if (!json) {
-      addTrace("R-INFO: sessionStorage空");
-      return null;
-    }
-    addTrace(`R-INFO: payload=${json.length} chars`);
+    if (!json) return null;
     const parsed = JSON.parse(json) as Partial<PersistedResult>;
     if (
       typeof parsed.patientSheet === "string" &&
@@ -222,7 +154,6 @@ const loadGeneratedResult = (): PersistedResult | null => {
       parsed.formData &&
       (parsed.formData.mode === "denture" || parsed.formData.mode === "crown")
     ) {
-      addTrace("R.sessionStorage復元完了");
       return {
         patientSheet: parsed.patientSheet,
         talkScript: parsed.talkScript,
@@ -231,10 +162,7 @@ const loadGeneratedResult = (): PersistedResult | null => {
         formData: parsed.formData,
       };
     }
-    addTrace("R-ERR: 形式不正");
   } catch (e) {
-    const errName = e instanceof Error ? e.name : String(e);
-    addTrace(`R-ERR: ${errName}`);
     console.error("[sessionStorage load error]", e);
   }
   return null;
@@ -1906,8 +1834,6 @@ export default function Page() {
     setResult(null);
     setPatientAnonId("");
     clearGeneratedResult();
-    clearTrace();
-    addTrace("A.fetch送信");
 
     // 💡 判定テーブルで候補・価格・換算・フラグを確定（AIには結果のみ渡す）
     const decision =
@@ -1969,10 +1895,8 @@ export default function Page() {
         signal: controller.signal,
       });
       clearTimeout(fetchTimeout);
-      addTrace("B.レスポンス受信");
 
       const data = await res.json();
-      addTrace("C.パース完了");
       if (data.success) {
         const generatedIssueDate = new Date().toLocaleDateString("ja-JP", {
           year: "numeric",
@@ -2007,7 +1931,6 @@ export default function Page() {
       }
     } finally {
       setLoading(false);
-      addTrace("F.ローディング解除・結果表示");
     }
   };
 
@@ -2380,14 +2303,6 @@ export default function Page() {
     const [pages, setPages] = useState<SheetBlock[][] | null>(null);
     const measureRef = useRef<HTMLDivElement>(null);
     const runCountRef = useRef(0);
-    const loggedStartRef = useRef(false);
-    const loggedCompleteRef = useRef(false);
-
-    // 💡 シート描画開始トレース（1回のみ）
-    if (!loggedStartRef.current) {
-      loggedStartRef.current = true;
-      addTrace("D.シート描画開始");
-    }
 
     // 💡 フォント読み込み完了後に再測定し、フォント未読込の高さで確定しないようにする
     const [fontsReady, setFontsReady] = useState(false);
@@ -2410,7 +2325,6 @@ export default function Page() {
       const timer = setTimeout(() => {
         if (pages === null) {
           console.warn("[PaginatedSheet] measurement timeout fallback");
-          addTrace("D1d.10秒タイムアウトフォールバック");
           setPages([blocks]);
         }
       }, 10000);
@@ -2419,31 +2333,24 @@ export default function Page() {
 
     useEffect(() => {
       runCountRef.current += 1;
-      addTrace(`D1.effect発火(${runCountRef.current})`);
 
       // 💡 連続測定ループ防止：同一インスタンスで3回を超えて測定が走ったら単一ページに逃がす
       if (runCountRef.current > MAX_MEASURE_RUNS && pages === null) {
         console.warn(
           `[PaginatedSheet] too many measurement runs (${runCountRef.current}), fallback to single page`
         );
-        addTrace("D1b.ループ上限到達フォールバック");
         setPages([blocks]);
         return;
       }
 
       // 💡 フォント読み込み完了前は高さが未定のため、確定せずに待つ（fonts.ready解決後に再測定）
       if (!fontsReady) {
-        addTrace("D1c.fonts未読込で待機");
         return;
       }
-      addTrace("D2.fontsReady=true確認");
-      addTrace(`D2.5.measureRef存在=${measureRef.current ? "true" : "false"}`);
 
       if (!measureRef.current) {
-        addTrace("D2b.measureRef未設定で終了");
         return;
       }
-      addTrace("D3.測定ループ開始");
       const measureContainer = measureRef.current;
 
       try {
@@ -2514,18 +2421,10 @@ export default function Page() {
         }
 
         setPages(grouped.length > 0 ? grouped : [[]]);
-        if (!loggedCompleteRef.current) {
-          loggedCompleteRef.current = true;
-          addTrace("E.測定完了");
-        }
       } catch (err: any) {
         console.error("[PaginatedSheet] measurement error:", err);
         // 測定失敗時は単一ページにフォールバック（表示切れ防止）
         setPages([blocks]);
-        if (!loggedCompleteRef.current) {
-          loggedCompleteRef.current = true;
-          addTrace("E.測定完了（フォールバック）");
-        }
       }
     }, [blocks, header, footer, measureWidth, fontsReady]);
 
@@ -3714,9 +3613,6 @@ export default function Page() {
           )}
         </section>
       </div>
-
-      {/* 💡 一時トレースパネル（デフォルト折りたたみ） */}
-      <TracePanel />
 
       {/* 💡 ローディング長時間化・エラー発生時の復帰手段 */}
       {showReset && (
