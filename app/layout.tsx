@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
+import Script from "next/script";
 
 // 💡 高級感・高齢患者の視認性のため、Noto Sans JP をアプリ全体の基準フォントに統一
 //    （next/font はビルド時にフォントを自前ホスティングするため、PDF生成（html-to-image）にも埋め込まれる）
@@ -18,10 +19,11 @@ const notoSerifJP = Noto_Serif_JP({
   display: "swap",
 });
 
+// 💡 LP指示書 セクション6: SEO・メタ情報（ツール本体 /app は noindex を app/app/layout.tsx で上書き）
 export const metadata = {
-  title: "デンピストAI｜AI自費義歯カウンセリング支援",
+  title: "デンピストAI｜治療の選択肢を、患者さまの手に。",
   description:
-    "Denpist AI — 歯科衛生士のための自費義歯カウンセリング支援ツール",
+    "保険と自費の選択肢を患者さま一人ひとりに合わせて比較できる説明シートをAIが生成。歯科医院のためのカウンセリング支援ツール。13項目のタップだけで、その日の診療から使えます。",
   // 💡 PWA化: iOSでホーム画面に追加した際にアプリとして起動させる
   appleWebApp: {
     capable: true,
@@ -35,6 +37,9 @@ export const viewport = {
   themeColor: "#0f172a",
 };
 
+// 💡 GA4 測定IDはプレースホルダー。取得後に差し替える（LP指示書 セクション1-4）
+const GA4_MEASUREMENT_ID = "G-XXXXXXXXXX";
+
 export default function RootLayout({
   children,
 }: {
@@ -47,6 +52,16 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {children}
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`}
+          strategy="afterInteractive"
+        />
+        <Script id="ga4-init" strategy="afterInteractive">
+          {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${GA4_MEASUREMENT_ID}');`}
+        </Script>
       </body>
     </html>
   );
