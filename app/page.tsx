@@ -1,13 +1,8 @@
-import type { Metadata } from "next";
 import ReportGallery from "./report-gallery";
 import Section2Background from "./section2-background";
 
-// 💡 LP指示書 セクション6: OGP画像はプレースホルダー /images/ogp.jpg（後で差し替え）
-export const metadata: Metadata = {
-  openGraph: {
-    images: ["/images/ogp.jpg"],
-  },
-};
+// 💡 OGP/Twitterカードのメタ情報は app/layout.tsx に集約（og:image は絶対URL指定）。
+//    ページ側で openGraph を上書きすると相対パスが使われてしまうため、ここでは定義しない。
 
 // ============================================================
 // デンピストAI ランディングページ（LP作成指示書 セクション3の文言を厳守）
@@ -40,7 +35,7 @@ export default function LandingPage() {
   return (
     <div className="text-ink">
       {/* ==================== ヘッダー ==================== */}
-      <header className="sticky top-0 z-10 border-b border-line bg-paper/95 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-line bg-paper backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
           <a href="#top" className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -66,10 +61,13 @@ export default function LandingPage() {
         <div className="mx-auto max-w-5xl px-5 pb-16 pt-12 md:pb-24 md:pt-20">
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div>
-              <h1 className="font-serif-jp text-5xl font-bold leading-relaxed md:text-[3.4rem] md:leading-snug">
-                治療の選択肢を、
+              {/* 💡 モバイルで4行に分裂しないよう、各行をnowrap＋モバイルのみ文字サイズ調整（PCは現行サイズ維持） */}
+              <h1 className="font-serif-jp text-[2.5rem] font-bold leading-relaxed md:text-[3.4rem] md:leading-snug">
+                <span className="whitespace-nowrap">治療の選択肢を、</span>
                 <br />
-                <span className="text-gold">患者さまの手に。</span>
+                <span className="whitespace-nowrap text-gold">
+                  患者さまの手に。
+                </span>
               </h1>
               <p className="mt-6 leading-loose text-ink-soft">
                 保険と自費、それぞれの選択肢とメリットを患者さま一人ひとりに合わせて比較できる説明シートを、AIがその場で生成。歯科衛生士のカウンセリングを、もっと自然に、もっと伝わる形に。
@@ -99,7 +97,7 @@ export default function LandingPage() {
       </section>
 
       {/* ==================== セクション2：課題・共感 ==================== */}
-      <section className="relative overflow-hidden border-y border-line bg-tint">
+      <section className="relative isolate overflow-hidden border-y border-line bg-tint">
         {/* 💡 背景動画＋半透明オーバーレイ（テキストは relative z-10 で最前面） */}
         <Section2Background />
         <div className="relative z-10 mx-auto max-w-3xl px-5 py-16 md:py-24">

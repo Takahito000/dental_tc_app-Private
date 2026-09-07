@@ -24,6 +24,26 @@ export const metadata = {
   title: "デンピストAI｜治療の選択肢を、患者さまの手に。",
   description:
     "保険と自費の選択肢を患者さま一人ひとりに合わせて比較できる説明シートをAIが生成。歯科医院のためのカウンセリング支援ツール。13項目のタップだけで、その日の診療から使えます。",
+  // 💡 OGP/Twitterカード。og:image は https:// 始まりの絶対URL必須（相対パスはLINE等で認識されない）
+  openGraph: {
+    title: "デンピストAI｜治療の選択肢を、患者さまの手に。",
+    description:
+      "歯科医院のためのAI自費カウンセリング支援ツール。義歯・クラウンの自費提案を、患者さまに届く説明に変えます。",
+    url: "https://denpist-ai.com",
+    siteName: "デンピストAI",
+    images: [
+      {
+        url: "https://denpist-ai.com/images/ogp.jpg",
+        width: 1200,
+        height: 630,
+      },
+    ],
+    locale: "ja_JP",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
   // 💡 PWA化: iOSでホーム画面に追加した際にアプリとして起動させる
   appleWebApp: {
     capable: true,
