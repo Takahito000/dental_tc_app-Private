@@ -101,11 +101,12 @@ export default function LandingPage() {
         {/* 💡 背景動画＋半透明オーバーレイ（テキストは relative z-10 で最前面） */}
         <Section2Background />
         <div className="relative z-10 mx-auto max-w-3xl px-5 py-16 md:py-24">
-          <SerifHeading className="text-center">
-            「高いものを勧めたい」んじゃない。
+          {/* 💡 モバイルで4行に分裂しないよう、各行をnowrap＋モバイルのみ文字サイズ調整（PCは現行サイズ維持） */}
+          <h2 className="text-center font-serif-jp text-[1.2rem] font-bold leading-relaxed text-ink md:text-3xl">
+            <span className="whitespace-nowrap">「高いものを勧めたい」んじゃない。</span>
             <br />
-            「選択肢を届けたい」だけなのに。
-          </SerifHeading>
+            <span className="whitespace-nowrap">「選択肢を届けたい」だけなのに。</span>
+          </h2>
           <div className="mt-10 space-y-8 leading-loose">
             <p>
               義歯や被せ物の自費治療。価値があると分かっていても、提案には大きな心理的ハードルがあります。
@@ -374,7 +375,8 @@ export default function LandingPage() {
           <blockquote className="mt-10 rounded-xl border border-line bg-white p-8 leading-loose md:p-10">
             {/* 2カラム：左=推薦文、右=写真＋署名。モバイルは縦積み（写真→本文） */}
             <div className="flex flex-col-reverse gap-8 md:flex-row md:gap-10">
-              <div className="md:flex-1">
+              {/* 💡 コメントが長いためフォントサイズを現行の約80%に縮小（肩書・署名のサイズは変更しない） */}
+              <div className="text-[0.8rem] md:flex-1">
                 <p>
                   “患者さんに寄り添う”
                   <br />
