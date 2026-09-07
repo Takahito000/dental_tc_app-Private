@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <div className="mx-auto flex max-w-3xl items-center gap-2.5 px-5 py-3">
           <a href="/" className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/logo.png" alt="デンピストAI" className="h-9 w-9" />
+            <img src="/images/icon-lp.png" alt="デンピストAI" className="h-9 w-9" />
             <span className="font-serif-jp text-lg font-bold tracking-wide">
               デンピストAI
             </span>

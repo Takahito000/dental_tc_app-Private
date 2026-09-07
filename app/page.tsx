@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import ReportGallery from "./report-gallery";
+import Section2Background from "./section2-background";
 
 // 💡 LP指示書 セクション6: OGP画像はプレースホルダー /images/ogp.jpg（後で差し替え）
 export const metadata: Metadata = {
@@ -42,8 +44,8 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
           <a href="#top" className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/logo.png" alt="デンピストAI" className="h-9 w-9" />
-            <span className="font-serif-jp text-lg font-bold tracking-wide">
+            <img src="/images/icon-lp.png" alt="デンピストAI" className="h-9 w-9" />
+            <span className="whitespace-nowrap font-serif-jp text-lg font-bold tracking-wide">
               デンピストAI
             </span>
           </a>
@@ -51,7 +53,10 @@ export default function LandingPage() {
             href="#apply"
             className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-white md:px-5 md:text-sm"
           >
-            無料トライアルに申し込む（4週間・無料）
+            <span className="sm:hidden">無料で試す</span>
+            <span className="hidden sm:inline">
+              無料トライアルに申し込む（4週間・無料）
+            </span>
           </a>
         </div>
       </header>
@@ -61,10 +66,10 @@ export default function LandingPage() {
         <div className="mx-auto max-w-5xl px-5 pb-16 pt-12 md:pb-24 md:pt-20">
           <div className="grid items-center gap-10 md:grid-cols-2">
             <div>
-              <h1 className="font-serif-jp text-3xl font-bold leading-relaxed md:text-[2.6rem] md:leading-snug">
+              <h1 className="font-serif-jp text-5xl font-bold leading-relaxed md:text-[3.4rem] md:leading-snug">
                 治療の選択肢を、
                 <br />
-                患者さまの手に。
+                <span className="text-gold">患者さまの手に。</span>
               </h1>
               <p className="mt-6 leading-loose text-ink-soft">
                 保険と自費、それぞれの選択肢とメリットを患者さま一人ひとりに合わせて比較できる説明シートを、AIがその場で生成。歯科衛生士のカウンセリングを、もっと自然に、もっと伝わる形に。
@@ -72,7 +77,7 @@ export default function LandingPage() {
               <div className="mt-8">
                 <a
                   href="#apply"
-                  className="inline-block rounded-full bg-accent px-8 py-4 text-sm font-bold text-white shadow-sm"
+                  className="inline-block rounded-full bg-accent px-10 py-5 text-sm font-bold text-white shadow-sm"
                 >
                   無料トライアルに申し込む（4週間・無料）
                 </a>
@@ -81,12 +86,12 @@ export default function LandingPage() {
                 </p>
               </div>
             </div>
-            <div className="md:pl-4">
+            <div className="px-2 py-4 md:pl-6">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/report-sample.jpg"
                 alt="AI客観分析レポートのサンプル"
-                className="w-full rounded-lg border border-line shadow-md"
+                className="w-full rotate-2 rounded-lg border border-line drop-shadow-2xl md:rotate-1"
               />
             </div>
           </div>
@@ -94,8 +99,10 @@ export default function LandingPage() {
       </section>
 
       {/* ==================== セクション2：課題・共感 ==================== */}
-      <section className="border-y border-line bg-tint">
-        <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
+      <section className="relative overflow-hidden border-y border-line bg-tint">
+        {/* 💡 背景動画＋半透明オーバーレイ（テキストは relative z-10 で最前面） */}
+        <Section2Background />
+        <div className="relative z-10 mx-auto max-w-3xl px-5 py-16 md:py-24">
           <SerifHeading className="text-center">
             「高いものを勧めたい」んじゃない。
             <br />
@@ -184,14 +191,9 @@ export default function LandingPage() {
           </p>
 
           <figure className="mt-12">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/report-sample.jpg"
-              alt="デンピストAIが生成した比較説明シートの実例"
-              className="mx-auto w-full max-w-2xl rounded-lg border border-line shadow-md"
-            />
+            <ReportGallery />
             <figcaption className="mt-4 text-center text-sm leading-loose text-ink-soft">
-              実際の生成例。患者さまのお名前や状態に合わせて、毎回オリジナルのシートが作成されます。
+              実際の生成例。患者さまの感情や口腔内の状態に合わせて、毎回オリジナルのシートが作成されます。
             </figcaption>
           </figure>
         </div>
@@ -245,7 +247,7 @@ export default function LandingPage() {
               {
                 step: "STEP 2",
                 title: "はじめの30分だけ、オンラインでご一緒します",
-                body: "御院向けの設定をこちらでご一緒します。説明会ではありません。30分で設定が完了し、あとはスタッフさまだけでお使いいただけます。",
+                body: "貴院専用の設定は、こちらで済ませてお渡しします。30分は設定作業ではありません。使い方のご説明と、『提案への心理的ブロックがあるのは、当たり前のことです。でも、選択肢を届けることこそ、患者さまへのホスピタリティではないでしょうか』——監修の歯科衛生士の考え方をお伝えするキックオフです。あとはスタッフさまだけでお使いいただけます。",
               },
               {
                 step: "STEP 3",
@@ -263,28 +265,95 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ==================== セクション6：監修者プロフィール ==================== */}
+      {/* ==================== セクション6：監修者紹介 ==================== */}
       <section className="border-y border-line bg-tint">
         <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
           <SectionLabel>SUPERVISOR</SectionLabel>
-          <SerifHeading>現場の声から生まれたツールです</SerifHeading>
-          <div className="mt-10 grid items-start gap-10 md:grid-cols-[280px_1fr]">
+          <SerifHeading>監修者紹介</SerifHeading>
+
+          {/* PC（md以上）は2カラム：左=写真、右=名前行・実績カード・プロフィール・経歴。
+              モバイルは縦積み＋実績カードを2段グリッド（2枚＋1枚）に抑えた構成 */}
+          <div className="mt-10 grid items-start gap-8 md:grid-cols-[1fr_2fr] md:gap-10">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/images/supervisor.jpg"
               alt="監修者 山岸雪乃（歯科衛生士）"
-              className="mx-auto w-48 rounded-xl border border-line object-cover md:w-full"
+              className="mx-auto w-40 rounded-xl border border-line object-cover md:w-full"
             />
-            <div className="leading-loose">
-              <p className="font-serif-jp text-xl font-bold">山岸 雪乃（歯科衛生士）</p>
-              <p className="mt-3 text-sm text-ink-soft">
-                【実績・経歴はプレースホルダー。後で差し替える】
+            <div>
+              <p className="text-center font-serif-jp text-xl font-bold md:text-left">
+                <span className="mr-1 text-base font-bold text-accent">監修｜</span>
+                山岸 雪乃（歯科衛生士）
               </p>
-              <p className="mt-6">
-                「患者さんに本当の選択肢を届けたい」——その想いで現場に立ち続ける中で、説明の質が個人の経験に依存してしまう現実に直面しました。デンピストAIは、雪乃自身が現場で培ってきたカウンセリングの型を、どの医院でも、誰でも使える形に落とし込んだツールです。
+              <p className="mt-2 text-center text-sm text-ink-soft md:text-left">
+                一般社団法人日本歯科TC協会 北海道支部 理事
               </p>
+
+              {/* 実績ハイライト：モバイルは2段グリッド（1段目2枚・2段目自費受注のみ全幅）。
+                  カードの余白と数値フォントはモバイルのみ1段階縮小。PCは現行の3横並びを維持 */}
+              <div className="mt-5 grid grid-cols-2 gap-3 md:mt-6 md:grid-cols-[1fr_1fr_1.3fr] md:gap-4">
+                {[
+                  { label: "臨床経験", value: "15年目" },
+                  { label: "カウンセリング実績", value: "772人" },
+                  { label: "自費受注", value: "年間2億円ペース" },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    className={`rounded-xl border border-line bg-white p-4 text-center md:p-6 ${
+                      s.label === "自費受注" ? "col-span-2 md:col-span-1" : ""
+                    }`}
+                  >
+                    <p className="text-xs font-bold tracking-widest text-ink-soft">
+                      {s.label}
+                    </p>
+                    <p className="mt-2 font-serif-jp text-xl font-bold text-accent md:text-2xl">
+                      {s.value}
+                    </p>
+                    {s.label === "カウンセリング実績" && (
+                      <p className="mt-1 text-xs text-ink-soft">（4年間）</p>
+                    )}
+                    {s.label === "自費受注" && (
+                      <p className="mt-1 text-xs text-ink-soft">を継続</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* プロフィール文 */}
+              <p className="mt-6 text-sm leading-loose md:mt-8">
+                歯科衛生士として15年目。自費義歯のカウンセリングを専門とし、2023年より年間2億円ペースの自費受注を継続。カウンセリング実績は4年間で772人。2022年より、歯科衛生士・TC向けセミナー（TC北海道支部オンラインセミナー、TC関東支部バトンリレーセミナー等）に登壇。京都の歯科医院では単独講師としてカウンセリング実践セミナーを担当するなど、自費カウンセリングの実践知を全国の歯科医療従事者に共有している。
+              </p>
+
+              {/* 経歴・メディア */}
+              <ul className="mt-4 space-y-2 text-sm leading-relaxed text-ink-soft md:mt-6">
+                <li className="flex gap-3">
+                  <span className="mt-0.5 shrink-0 text-gold">・</span>
+                  <span>JADTC 認定トリートメントコーディネーターMaster</span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="mt-0.5 shrink-0 text-gold">・</span>
+                  <span>
+                    専門誌「デンタルハイジーン」（医歯薬出版）取材掲載（Vol.40 No.5、Vol.41 No.6）
+                  </span>
+                </li>
+                <li className="flex gap-3">
+                  <span className="mt-0.5 shrink-0 text-gold">・</span>
+                  <span>歯科衛生士・TC向けセミナー登壇（2022年〜）</span>
+                </li>
+              </ul>
             </div>
           </div>
+
+          {/* 本人メッセージ（引用ブロック）：セクション全幅で2カラムの下に配置（変更なし） */}
+
+          {/* 本人メッセージ（引用ブロック） */}
+          <blockquote className="mt-10 rounded-xl border border-line bg-white p-8 leading-loose md:p-10">
+            <p>
+              カウンセリングの現場でずっと感じていたのは、『伝えたいのに、伝わらない』というもどかしさでした。自費の提案に躊躇してしまうのは、売り込みたくないという優しさの裏返しです。でも、選択肢を知らないまま決めてしまう患者さんを何度も見てきました。伝えることを、仕組みに変えたい。デンピストAIには、私が現場で培ってきたカウンセリングの型をすべて込めています。
+            </p>
+            {/* 💡 メッセージ〜署名の間隔はモバイルのみ1段階詰める */}
+            <p className="mt-3 text-right font-bold md:mt-6">―― 山岸 雪乃</p>
+          </blockquote>
         </div>
       </section>
 
@@ -294,19 +363,62 @@ export default function LandingPage() {
           <SectionLabel>VOICE</SectionLabel>
           <SerifHeading>推薦の声</SerifHeading>
           {/* 💡 差し替え時の分量変動を吸収するため、固定高さを持たない可変レイアウト */}
+          {/* 💡 レイアウト切り替え箇所：推薦者が複数になった場合は、
+              下記の2カラム構成をやめて推薦文を全幅にし、写真＋署名を
+              「h-16 w-16 rounded-full」の小さいアイコン式に戻す
+              （差し替え前の記述：
+              <div className="mt-8 flex items-center justify-end gap-4">
+                <div className="text-right">
+                  <p className="font-bold">…署名…</p>
+                  <img className="mt-2 ml-auto h-16 w-16 rounded-full border border-line object-cover" />
+                </div>
+              </div> ） */}
           <blockquote className="mt-10 rounded-xl border border-line bg-white p-8 leading-loose md:p-10">
-            <p>
-              山岸雪乃さんは、北海道支部の理事として、また現場の第一線で、「患者さんに本当の選択肢を届けたい」と悩む衛生士さんたちと長年向き合ってこられました。その雪乃さんの経験と想いが現場で誰もが使える形になったことを、心から嬉しく思います。「伝えたいのに伝えられない」と抱えてきた衛生士さんたちの助けになり、そして患者さんが自分に合った入れ歯を自分で選べるようになることを、支部長として、また一人の歯科従事者として応援しています。
-            </p>
-            <div className="mt-8 flex items-center justify-end gap-4">
-              <div className="text-right">
-                <p className="font-bold">【氏名・肩書（プレースホルダー）】</p>
+            {/* 2カラム：左=推薦文、右=写真＋署名。モバイルは縦積み（写真→本文） */}
+            <div className="flex flex-col-reverse gap-8 md:flex-row md:gap-10">
+              <div className="md:flex-1">
+                <p>
+                  “患者さんに寄り添う”
+                  <br />
+                  “患者さんとご家族に笑顔で暮らしてほしい”
+                  <br />
+                  山岸雪乃さんを思う時に真っ先に浮かぶ言葉です。
+                </p>
+                <p className="mt-6">
+                  山岸さんと出会って8年半。
+                  <br />
+                  日々の診療の中で患者さんと向き合い、歯科衛生士主任となり、更に責任ある立場でスタッフをまとめ、院長との架け橋を務める。
+                  <br />
+                  一般社団法人日本歯科TC協会が目指すトリートメントコーディネーターを体現している方です。
+                </p>
+                <p className="mt-6">
+                  日本でも稀有な入れ歯専門歯科医院での実践経験を惜しみなく提供し、自費の提案に躊躇してしまう歯科医療従事者の方々の背中を押してくれるツールが誕生した事を誇らしく、大変嬉しく思います。
+                </p>
+                <p className="mt-6">
+                  心を寄せる“本物”のカウンセリング。
+                </p>
+                <p className="mt-6">
+                  益々のご活躍を祈念するとともに、愛されるTC（トリートメントコーディネーター）である山岸さんを心から応援しています。
+                </p>
+              </div>
+              {/* 右カラム：カラム自体を内容幅（w-max）にし、写真と署名の中央軸を一致させる */}
+              <div className="mx-auto w-max shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/images/recommender.jpg"
                   alt="推薦者の写真"
-                  className="mt-2 ml-auto h-16 w-16 rounded-full border border-line object-cover"
+                  className="mx-auto aspect-[4/5] w-40 rounded-lg border border-line object-cover drop-shadow-2xl md:w-48"
                 />
+                {/* 💡 署名は内容幅いっぱい（w-full）で text-center。nowrapの肩書より広いカラム幅が確保されるため中央からのはみ出しなし */}
+                <p className="mt-4 w-full text-center text-sm font-bold leading-relaxed">
+                  <span className="whitespace-nowrap">
+                    一般社団法人日本歯科TC協会 理事
+                  </span>
+                  <br />
+                  北海道支部長
+                  <br />
+                  フィアーズ 多希子
+                </p>
               </div>
             </div>
           </blockquote>
@@ -325,7 +437,7 @@ export default function LandingPage() {
           <div className="mt-10 rounded-xl border border-gold/40 bg-white p-7">
             <h3 className="font-bold">費用対効果について</h3>
             <p className="mt-3 text-sm leading-loose text-ink-soft">
-              自費のクラウン治療が月に1本増えるだけで、年間のご利用料金を回収できる計算です。まずは無料トライアルで、御院での効果をご確認ください。
+              自費のクラウン治療が月に1本増えるだけで、年間のご利用料金を回収できる計算です。まずは無料トライアルで、貴院での効果をご確認ください。
             </p>
           </div>
 
@@ -349,6 +461,7 @@ export default function LandingPage() {
                     plan: "スタンダードプラン（モニター）",
                     price: "19,800円／月",
                     cond: "5ヶ月間限定。簡単なフィードバックへのご協力をお願いします",
+                    highlight: true,
                   },
                   {
                     plan: "スタンダードプラン（月払い）",
@@ -361,9 +474,23 @@ export default function LandingPage() {
                     cond: "月換算で約2ヶ月分お得",
                   },
                 ].map((row, i) => (
-                  <tr key={row.plan} className={i % 2 === 1 ? "bg-paper/60" : ""}>
+                  <tr
+                    key={row.plan}
+                    className={
+                      "highlight" in row && row.highlight
+                        ? "bg-accent-tint"
+                        : i % 2 === 1
+                          ? "bg-paper/60"
+                          : ""
+                    }
+                  >
                     <td className="border-b border-line px-4 py-4 font-bold align-top">
                       {row.plan}
+                      {"highlight" in row && row.highlight && (
+                        <span className="ml-2 inline-block rounded-full border border-gold px-2 py-0.5 align-middle text-[10px] font-bold tracking-wider text-gold">
+                          おすすめ
+                        </span>
+                      )}
                     </td>
                     <td
                       className="border-b border-line px-4 py-4 align-top font-bold whitespace-nowrap text-accent"
@@ -385,6 +512,12 @@ export default function LandingPage() {
             <li>
               ※モニター医院さまは随時募集しています。義歯・クラウンの相談機会が月数件の医院さまでも効果をご実感いただけるよう、トライアルと合わせて約6ヶ月の期間をご用意しています
             </li>
+            <li>
+              ※年払いプランは割引を適用しているため、途中解約の場合もご返金はいたしかねます
+            </li>
+            <li>
+              ※月払いプランの解約は、お申し出いただいた月の翌月末の適用となります
+            </li>
           </ul>
         </div>
       </section>
@@ -398,7 +531,7 @@ export default function LandingPage() {
             {[
               {
                 q: "機器の導入は必要ですか？",
-                a: "不要です。インターネットに接続されたPCまたはタブレットがあれば、そのままご利用いただけます。",
+                a: "不要です。インターネットに接続されたスマートフォン・タブレットまたはPCがあれば、そのままご利用いただけます。",
               },
               {
                 q: "患者さまの個人情報の取り扱いは？",
@@ -432,19 +565,26 @@ export default function LandingPage() {
       </section>
 
       {/* ==================== セクション10：申し込み ==================== */}
-      <section id="apply" className="border-y border-line bg-tint">
+      {/* 💡 視線誘導：アクセントカラー（茶・ゴールド系）の背景に、見出し・本文はpaper系の色 */}
+      <section id="apply" className="bg-gold">
         <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
-          <SectionLabel>TRIAL</SectionLabel>
-          <SerifHeading>まずは4週間、無料でお試しください</SerifHeading>
-          <p className="mt-6 leading-loose text-ink-soft">
-            下記フォームからお申し込みください。内容を確認後、こちらからご連絡し、オンラインでの初期設定（30分）の日程をご相談させていただきます。
+          <p className="mb-3 text-sm font-bold tracking-widest text-paper/80">
+            TRIAL
           </p>
-          {/* 💡 Notionフォームのiframe埋め込みプレースホルダー（埋め込みコード提供後に差し替え・高さ可変） */}
-          <div className="mt-10 flex min-h-[480px] items-center justify-center rounded-xl border border-dashed border-line bg-white p-6">
-            <p className="text-sm text-ink-soft">
-              お申し込みフォーム（Notion）は現在準備中です
-            </p>
-          </div>
+          <h2 className="font-serif-jp text-2xl font-bold leading-relaxed text-paper md:text-3xl">
+            まずは4週間、無料でお試しください
+          </h2>
+          <p className="mt-6 leading-loose text-paper/90">
+            下記フォームからお申し込みください。内容を確認後、こちらからご連絡し、貴院専用の設定を行った上で、オンラインキックオフ（30分）の日程をご相談させていただきます。
+          </p>
+          {/* 💡 Notionフォームのiframe埋め込み（埋め込みコード指定どおり） */}
+          <iframe
+            src="https://cs-lab2024.notion.site/ebd//3d3cffab5ad080758b5af046d4205ad7"
+            title="無料トライアル申し込みフォーム"
+            loading="lazy"
+            allowFullScreen
+            className="mt-10 h-[600px] w-full rounded-xl border border-line bg-white"
+          />
         </div>
       </section>
 
@@ -461,7 +601,7 @@ export default function LandingPage() {
           <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
             <div className="flex items-center gap-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/images/logo.png" alt="デンピストAI" className="h-8 w-8" />
+              <img src="/images/icon-lp.png" alt="デンピストAI" className="h-8 w-8" />
               <div>
                 <p className="font-serif-jp font-bold">デンピストAI（Dentpist AI）</p>
                 <p className="text-xs text-ink-soft">運営：CS.lab（山岸貴仁）</p>

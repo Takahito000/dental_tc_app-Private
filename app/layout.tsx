@@ -1,6 +1,6 @@
 import "./globals.css";
 import { Noto_Sans_JP, Noto_Serif_JP } from "next/font/google";
-import Script from "next/script";
+import Ga4Script from "./ga4-script";
 
 // 💡 高級感・高齢患者の視認性のため、Noto Sans JP をアプリ全体の基準フォントに統一
 //    （next/font はビルド時にフォントを自前ホスティングするため、PDF生成（html-to-image）にも埋め込まれる）
@@ -37,9 +37,6 @@ export const viewport = {
   themeColor: "#0f172a",
 };
 
-// 💡 GA4 測定IDはプレースホルダー。取得後に差し替える（LP指示書 セクション1-4）
-const GA4_MEASUREMENT_ID = "G-XXXXXXXXXX";
-
 export default function RootLayout({
   children,
 }: {
@@ -52,16 +49,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         {children}
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}`}
-          strategy="afterInteractive"
-        />
-        <Script id="ga4-init" strategy="afterInteractive">
-          {`window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-gtag('config', '${GA4_MEASUREMENT_ID}');`}
-        </Script>
+        <Ga4Script />
       </body>
     </html>
   );

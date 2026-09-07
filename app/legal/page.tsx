@@ -6,7 +6,7 @@ export const metadata: Metadata = {
 
 // ============================================================
 // 特定商取引法に基づく表記（LP指示書 セクション11）
-// 【後で追記】箇所は指示書どおりプレースホルダーのまま。
+// 支払方法・支払時期／解約条件は 2026-09-07 に確定文へ差し替え済み。
 // ============================================================
 
 export default function LegalPage() {
@@ -16,7 +16,7 @@ export default function LegalPage() {
         <div className="mx-auto flex max-w-3xl items-center gap-2.5 px-5 py-3">
           <a href="/" className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/logo.png" alt="デンピストAI" className="h-9 w-9" />
+            <img src="/images/icon-lp.png" alt="デンピストAI" className="h-9 w-9" />
             <span className="font-serif-jp text-lg font-bold tracking-wide">
               デンピストAI
             </span>
@@ -50,17 +50,27 @@ export default function LegalPage() {
           </div>
           <div>
             <dt className="font-bold">支払方法・支払時期</dt>
-            <dd className="mt-2 text-sm text-ink-soft">【後で追記】</dd>
+            <dd className="mt-2 text-sm text-ink-soft">
+              銀行振込（請求書払い）／利用開始月の末日締め、翌月末日までのお振込みとなります。
+              <br />
+              ※ご利用開始日は毎月1日です。無料トライアル終了後に本契約へ移行される場合、翌月1日からのご利用開始となります（トライアル終了日から当月末までは無料でご利用いただけます）。
+            </dd>
           </div>
           <div>
             <dt className="font-bold">サービス提供時期</dt>
             <dd className="mt-2 text-sm text-ink-soft">
-              お申し込み後、オンラインでの初期設定完了後
+              お申し込み後、貴院専用の設定およびオンラインキックオフ（30分）完了後、ご利用開始となります。
             </dd>
           </div>
           <div>
             <dt className="font-bold">解約条件</dt>
-            <dd className="mt-2 text-sm text-ink-soft">【後で追記】</dd>
+            <dd className="mt-2 text-sm text-ink-soft">
+              月払いの場合：解約のお申し出はいつでも可能です。お申し出いただいた月の翌月末をもって解約となり、それまでのご利用料金をお支払いいただきます。日割りによる精算・返金はございません。
+              <br />
+              年払いの場合：いつでも解約をお申し出いただけますが、割引を適用した年額プランのため、残期間分を含めご返金はございません。
+              <br />
+              ※無料トライアル期間中はいつでも解約でき、自動で課金・本契約へ移行されることはありません。
+            </dd>
           </div>
         </dl>
       </main>
