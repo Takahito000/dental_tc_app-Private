@@ -1,5 +1,7 @@
+import CtaLink from "./cta-link";
 import ReportGallery from "./report-gallery";
 import Section2Background from "./section2-background";
+import ViewFormTracker from "./view-form-tracker";
 
 // 💡 OGP/Twitterカードのメタ情報は app/layout.tsx に集約（og:image は絶対URL指定）。
 //    ページ側で openGraph を上書きすると相対パスが使われてしまうため、ここでは定義しない。
@@ -34,6 +36,8 @@ function SerifHeading({
 export default function LandingPage() {
   return (
     <div className="text-ink">
+      {/* 💡 申し込みフォーム表示のGA4計測（セッション中1回のみ） */}
+      <ViewFormTracker />
       {/* ==================== ヘッダー ==================== */}
       <header className="sticky top-0 z-50 border-b border-line bg-paper backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
@@ -44,15 +48,15 @@ export default function LandingPage() {
               デンピストAI
             </span>
           </a>
-          <a
-            href="#apply"
+          <CtaLink
+            location="header"
             className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-white md:px-5 md:text-sm"
           >
             <span className="sm:hidden">無料で試す</span>
             <span className="hidden sm:inline">
               無料トライアルに申し込む（4週間・無料）
             </span>
-          </a>
+          </CtaLink>
         </div>
       </header>
 
@@ -73,12 +77,12 @@ export default function LandingPage() {
                 保険と自費、それぞれの選択肢とメリットを患者さま一人ひとりに合わせて比較できる説明シートを、AIがその場で生成。歯科衛生士のカウンセリングを、もっと自然に、もっと伝わる形に。
               </p>
               <div className="mt-8">
-                <a
-                  href="#apply"
+                <CtaLink
+                  location="hero"
                   className="inline-block rounded-full bg-accent px-10 py-5 text-sm font-bold text-white shadow-sm"
                 >
                   無料トライアルに申し込む（4週間・無料）
-                </a>
+                </CtaLink>
                 <p className="mt-4 text-xs text-ink-soft">
                   ※現在、モニター医院さまを募集しています
                 </p>
