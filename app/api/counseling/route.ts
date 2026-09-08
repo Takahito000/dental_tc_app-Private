@@ -69,6 +69,146 @@ export async function POST(req: Request) {
 
     const answer: string = difyData.answer || "";
 
+    // ----------------------------------------------------
+    // 💡 変更C：最小バリデータ — AI生テキスト全体を正規表現で決定的検証（AI自己チェックは見逃しうるため）
+    //    義歯側: 1)禁止語 2)注入値以外の金額 3)表の出力
+    //    クラウン側: 1)金額照合（candidate_price_range の数字のみ許可）2)表の出力 3)carefulモード混入検出
+    //    （クラウンの禁止語照合は文脈依存による誤検出リスクのため今回実装しない）
+    //    検出時も生成応答自体は返すが、クライアントは結果を表示しない（validation フィールドで通知。
+    //    自動再生成は行わず、既存の生成ボタンで再生成を促す）
+    // ----------------------------------------------------
+    const BANNED_WORDS = ["治療用義歯", "仮義歯", "BPS"];
+    const MONEY_RE = /([0-9０-９][0-9０-９,\.]*)\s*(万)?円/g;
+
+    const toHalfWidth = (s: string) =>
+      s.replace(/[０-９]/g, (c) =>
+        String.fromCharCode(c.charCodeAt(0) - 0xfee0),
+      );
+    const parseNum = (s: string): number =>
+      parseFloat(toHalfWidth(s).replace(/,/g, ""));
+
+    const validation: { items: string[]; matches: string[] } = {
+      items: [],
+      matches: [],
+    };
+
+    if (!isCrown) {
+      // ===== 義歯側 =====
+      // 注入値（candidate_price_range / price_per_day）に含まれる数字の許可集合。
+      // 「25万円」と「250000円」の表記違いを許すため、元の数字と×10000 の両方を登録する。
+      // 「保険適用（1〜3割負担）」等の定性的記述は「円」を伴わないため金額正規表現に一致しない（許可扱い）。
+      const allowedMoney = new Set<number>();
+      for (const src of [body.candidate_price_range, body.price_per_day]) {
+        const str = (src || "").toString();
+        for (const m of str.matchAll(/[0-9０-９][0-9０-９,\.]*/g)) {
+          const n = parseNum(m[0]);
+          if (!Number.isNaN(n)) {
+            allowedMoney.add(n);
+            allowedMoney.add(n * 10000);
+          }
+        }
+      }
+
+      // 1. 禁止語
+      for (const w of BANNED_WORDS) {
+        if (answer.includes(w)) {
+          validation.items.push(`禁止語: ${w}`);
+          validation.matches.push(w);
+        }
+      }
+
+      // 2. 金額の混入（注入値と一致しない数字を含む金額表現はすべて禁止）
+      for (const m of answer.matchAll(MONEY_RE)) {
+        const n = parseNum(m[1]);
+        if (Number.isNaN(n)) continue;
+        if (!allowedMoney.has(n) && !allowedMoney.has(n * 10000)) {
+          validation.items.push("金額の混入");
+          validation.matches.push(m[0]);
+        }
+      }
+    } else {
+      // ===== クラウン側 =====
+      // 構造番号（「ステップ1」等）の除外。①金額照合・③careful混入検出で共用する
+      // （カンペの構造番号は毎回出力されるため、金額・数字の判定前に必ず除外する）
+      const stripStepLabels = (text: string) =>
+        text.replace(/ステップ\s*[0-9０-９]+/g, "");
+      const answerWoSteps = stripStepLabels(answer);
+
+      // 金額らしき表現の検出対象（半角・全角・カンマ区切り・漢数字＋「円/万円」）。
+      // 「5年間」等の金額でない数字は対象外（将来の正当な非金額数字による誤検出を防ぐため）
+      const MONEY_LIKE_RE = /([0-9０-９一二三四五六七八九][0-9０-９,\.一二三四五六七八九]*)\s*(万)?円/g;
+
+      // 金額照合用の許可集合（単一変数 candidate_price_range のみ）
+      const allowedMoney = new Set<number>();
+      const priceStr = (body.candidate_price_range || "").toString();
+      for (const m of priceStr.matchAll(/[0-9０-９][0-9０-９,\.]*/g)) {
+        const n = parseNum(m[0]);
+        if (!Number.isNaN(n)) {
+          allowedMoney.add(n);
+          allowedMoney.add(n * 10000);
+        }
+      }
+
+      const isCarefulMode = (body.sheet_mode || "").toString() === "careful";
+
+      if (isCarefulMode) {
+        // 3. carefulモード混入検出（最重要）:
+        //    クラウン版プロンプトの絶対条件「careful時は候補提示・費用数字は一切出力しない」を
+        //    コードで強制する。破られると痛みのある患者への検査優先案内が崩れるためブロック。
+        const firstCandidate = (body.first_candidate || "").toString().trim();
+        if (firstCandidate && answer.includes(firstCandidate)) {
+          validation.items.push("careful混入: first_candidate");
+          validation.matches.push(firstCandidate);
+        }
+        // 価格とみなせる表現全般をカバーするため、数字そのものの出現をブロック対象にする。
+        // 構造番号（ステップN）は stripStepLabels で除外済み。
+        const digitMatch = answerWoSteps.match(/[0-9０-９]/);
+        if (digitMatch) {
+          validation.items.push("careful混入: 数字");
+          validation.matches.push(digitMatch[0]);
+        }
+      } else if (allowedMoney.size === 0) {
+        // 金額注入なしの場合：金額らしき表現が一切ないことを要求する
+        // （「ステップ1〜4」等の構造番号や「5年間」等の非金額数字は除外済みのため許可される）
+        const moneyMatch = answerWoSteps.match(new RegExp(MONEY_LIKE_RE.source));
+        if (moneyMatch) {
+          validation.items.push("金額の混入");
+          validation.matches.push(moneyMatch[0]);
+        }
+      } else {
+        // 1. 金額照合（candidate_price_range に含まれない数字の金額表現はすべて禁止）
+        for (const m of answerWoSteps.matchAll(MONEY_LIKE_RE)) {
+          const token = m[1];
+          if (/[一二三四五六七八九]/.test(token)) {
+            // 漢数字の金額は数値化せず、注入値文字列との照合のみで判定する
+            if (!priceStr.includes(token)) {
+              validation.items.push("金額の混入");
+              validation.matches.push(m[0]);
+            }
+            continue;
+          }
+          const n = parseNum(token);
+          if (Number.isNaN(n)) continue;
+          if (!allowedMoney.has(n) && !allowedMoney.has(n * 10000)) {
+            validation.items.push("金額の混入");
+            validation.matches.push(m[0]);
+          }
+        }
+      }
+    }
+
+    // 表の出力は義歯・クラウン共通（Markdown表：1行に「|」が2つ以上、または <table> タグ）
+    if (
+      answer.split("\n").some((l) => (l.match(/\|/g)?.length || 0) >= 2) ||
+      /<table[\s>]/i.test(answer)
+    ) {
+      validation.items.push("表の出力");
+      validation.matches.push("markdown/html table");
+    }
+
+    const validationResult =
+      validation.items.length > 0 ? validation : null;
+
     // レポートヘッダー置換用の値を先に確定（衛生士名・発行日）
     const staffName = (body.staffName || body.staff_name || "").toString().trim();
     const issueDate = new Date().toLocaleDateString("ja-JP", {
@@ -158,16 +298,32 @@ export async function POST(req: Request) {
         const logInputs = { ...body };
         delete logInputs.token;
         delete logInputs.access_token;
-        const { error: genLogError } = await supabase.from("generation_logs").insert({
+        const generationLogBase = {
           clinic_id: clinicId,
           patient_anon_id: patientAnonId || null,
           staff_name: staffName || null,
           inputs: logInputs,
           patient_sheet: patientSheet,
           talk_script: talkScript,
-        });
+        };
+        const { error: genLogError } = await supabase
+          .from("generation_logs")
+          .insert({
+            ...generationLogBase,
+            // 💡 変更C：バリデータ検出時は「検出項目・検出文字列」を記録し、運用で頻度監視できるようにする
+            ...(validationResult ? { validation_flags: validationResult } : {}),
+          });
         if (genLogError) {
           console.warn("Generation Log Warning:", genLogError.message);
+          if (validationResult) {
+            // validation_flags カラム未作成等の場合でも、ベース記録だけは残す
+            const { error: retryError } = await supabase
+              .from("generation_logs")
+              .insert(generationLogBase);
+            if (retryError) {
+              console.warn("Generation Log Retry Warning:", retryError.message);
+            }
+          }
         } else {
           console.log("Generation Log Created:", patientAnonId, "clinic:", clinicId);
         }
@@ -181,6 +337,8 @@ export async function POST(req: Request) {
       patientSheet,
       talkScript,
       patientAnonId,
+      // 💡 変更C：バリデータの検出結果（検出なしは null）。クライアントは検出時に結果表示をブロックする
+      validation: validationResult,
     });
   } catch (err: any) {
     console.error("Server Error:", err);

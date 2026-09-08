@@ -238,6 +238,111 @@ const DISCLAIMER_DENTURE =
 const INSURANCE_TEXT_DENTURE =
   "保険の入れ歯は、国の規則で使える素材や製作の工程が定められている、お口の基本的な機能を回復するためのものです。";
 
+// ===== 変更A：トークカンペ ステップ1の【心構え】固定文言（コード挿入化） =====
+// AIに再現させずコード定数で挿入する（文言欠落・順序違反・創作の防止）。
+// 旧プロンプト(v2.4.2)出力に含まれる【心構え】行はパース時に除去し、こちらの定数のみを表示する（二重表示防止）。
+const TALK_MINDSET_LINE =
+  "【心構え】選択肢を届けることは売り込みではなく、患者様へのホスピタリティです。決めるのは患者様ご自身です。今日は「こういう選択肢がある」と知っていただくことだけが目的です。";
+
+// ===== 変更3：クラウン版 トークカンペ ステップ1の【心構え】固定文言 =====
+// クラウン版プロンプト v1.2 の固定文言（義歯版とは別定数）。挿入ルールは parseTalkKeywords 側で分岐する。
+const TALK_MINDSET_LINE_CROWN =
+  "【心構え】選択肢を届けることは売り込みではなく、患者様へのホスピタリティです。決めるのは患者様ご自身です。今日は「こういう選択肢がある」と知っていただくことだけが目的です。";
+
+// ===== 変更B：おすすめセクション書き出しの定型文（コード結合） =====
+// AIに厳守させず、コードで本文先頭に前置する。cautious/careful モードでは定型を使わないため処理しない。
+// 旧プロンプト(v2.4.2)出力が既に定型文で始まっていた場合は除去してから結合する（二重表示防止）。
+const SHEET_OPENER: Record<string, string> = {
+  normal: "現在のお悩みに対応する具体的な選択肢として、",
+  insurance_first:
+    "まずは保険の入れ歯で使い心地を確かめてからでも遅くありません。そのうえで、将来の選択肢として参考までに、",
+};
+
+function applySheetOpener(
+  body: string,
+  sheetMode: string,
+  appMode = "denture",
+): string {
+  // 💡 変更1：書き出し定型文は義歯フロー専用。クラウンは normal/insurance_first/careful いずれでも
+  //    一切適用しない（クラウンの保険優先シートに義歯用書き出し文が混入するバグの防止）
+  if (appMode !== "denture") return body;
+  const opener = SHEET_OPENER[sheetMode];
+  if (!opener) return body;
+  const stripped = body.startsWith(opener)
+    ? body.slice(opener.length).trimStart()
+    : body;
+  return opener + stripped;
+}
+
+// ===== 変更4：シート内セクション見出しのコード化（固定見出し・位置ベース上書き） =====
+// 「■」行は構造マーカーとしてAIに出力させ、その文言をコード側の固定見出しで上書きする
+// （LLMは生成に使い再現に使わない。見出し文言のAI漏洩事故「今のお悩みへの共感」「導入文」等への対策）。
+// 件数が一致しない場合は上書きを行わずAI出力のまま使用し、console.warn を残す（現状より悪化しないことを優先）。
+// ※ モード表記: 義歯の慎重モードは cautious、クラウンは careful。義歯の通常は normal、クラウンは standard。
+const SHEET_FIXED_HEADINGS: Record<string, Record<string, string[]>> = {
+  denture: {
+    cautious: [
+      "現在のお悩みについて",
+      "知っておいていただきたいこと",
+      "次のステップについて",
+    ],
+    normal: [
+      "今のお悩みと目指す暮らし",
+      "あなたへのおすすめ",
+      "それぞれの良い点・注意点",
+      "費用の考え方",
+      "ご家族向けのまとめ",
+    ],
+    insurance_first: [
+      "今のお悩みと目指す暮らし",
+      "次の一歩の参考",
+      "それぞれの良い点・注意点",
+      "費用の考え方",
+      "ご家族向けのまとめ",
+    ],
+  },
+  crown: {
+    careful: [
+      "今のお気持ちへ",
+      "まず検査が先である理由",
+      "これからの流れ",
+      "素材選びは後回しで大丈夫です",
+    ],
+    insurance_first: [
+      "被せ物の素材の選択肢について",
+      "まずは保険の被せ物という選択肢",
+      "参考までに：自費の素材について",
+    ],
+    standard: [
+      "被せ物の素材の選択肢について",
+      "第一候補のご案内",
+      "次の一歩",
+    ],
+  },
+};
+
+// 固定見出しリストを返す。未定義モード・件数不一致時は null（呼び出し側はAI出力見出しにフォールバック）
+function resolveSheetHeadings(
+  appMode: string,
+  sheetMode: string,
+  sectionCount: number,
+): string[] | null {
+  const fixed = SHEET_FIXED_HEADINGS[appMode]?.[sheetMode];
+  if (!fixed) return null;
+  if (fixed.length !== sectionCount) {
+    console.warn(
+      `[シート見出し] ■行の件数が固定見出しリストと一致しないためAI出力見出しをそのまま使用: app=${appMode} mode=${sheetMode} ■行=${sectionCount} 固定=${fixed.length}`,
+    );
+    return null;
+  }
+  return fixed;
+}
+
+// ===== 変更C：最小バリデータ検出時の案内文（ユーザー承認済み文言） =====
+// 検出時は結果を一切表示せず、既存の生成ボタン（再生成導線）で対応する。自動再生成は行わない。
+const VALIDATION_ERROR_MESSAGE =
+  "生成結果に表示ルールに合わない内容が含まれていたため、表示を停止しました。お手数ですが、もう一度「生成する」ボタンを押してください。繰り返し表示される場合は、運営までお知らせください。";
+
 const COST_NOTE_DENTURE =
   "※費用は一般的な相場の目安です。医院によって診査・設計の工程が異なり、より精密な工程を行う場合は上振れする傾向があります。また、欠損している歯の数やお口の状態によっても変わりますので、詳しくは医院にご確認ください。";
 
@@ -518,6 +623,8 @@ type TalkKeywordStep = {
 
 function parseTalkKeywords(
   raw: string,
+  appMode: "denture" | "crown" = "denture",
+  sheetMode = "normal",
 ): { preamble: string; steps: TalkKeywordStep[] } | null {
   if (!raw.includes("【キーワード】")) return null;
   const lines = raw.split("\n");
@@ -564,6 +671,26 @@ function parseTalkKeywords(
     }
   }
   if (current) steps.push(finishStep(current));
+
+  // 💡 変更A／変更3（後方互換）：ステップ1の【心構え】はコード定数に統一する。
+  //    finishStep で AI出力の【心構え】行は全文(fullText)から除去済みのため、
+  //    ここで差し替えれば旧プロンプト出力でも二重表示にならない。
+  //    表示は「💡 」マーカーが既にあるため、【心構え】プレフィックスは除く。
+  //    クラウンcareful は【心構え】を挿入しない（ステップ0のみの仕様。AIが誤出力した場合は除去のみ）。
+  if (steps.length > 0) {
+    if (appMode === "crown") {
+      if (sheetMode === "careful") {
+        steps.forEach((s) => {
+          s.kokorogamae = null;
+        });
+      } else {
+        steps[0].kokorogamae = TALK_MINDSET_LINE_CROWN.replace(/^【心構え】/, "");
+      }
+    } else {
+      steps[0].kokorogamae = TALK_MINDSET_LINE.replace(/^【心構え】/, "");
+    }
+  }
+
   return { preamble: preambleLines.join("\n").trim(), steps };
 }
 
@@ -1898,6 +2025,12 @@ export default function Page() {
 
       const data = await res.json();
       if (data.success) {
+        if (data.validation) {
+          // 💡 変更C（最小バリデータ）：禁止語・金額・表のいずれかが検出された。
+          //    結果を一切表示しない（sessionStorage へも保存しない＝復元で復活しない）。
+          //    自動再生成はせず、既存の生成ボタン（再生成導線）で対応する。
+          showError(VALIDATION_ERROR_MESSAGE);
+        } else {
         const generatedIssueDate = new Date().toLocaleDateString("ja-JP", {
           year: "numeric",
           month: "long",
@@ -1919,6 +2052,7 @@ export default function Page() {
           issueDate: generatedIssueDate,
           formData: { ...formData },
         });
+        }
       } else {
         showError("AI生成エラー: " + (data.error || "通信エラー"));
       }
@@ -2492,6 +2626,17 @@ export default function Page() {
   const DenturePatientSheet = () => {
     const d = decision as Decision;
     const sheet = parsePatientSheet(result!.patientSheet);
+    // 💡 変更4：セクション見出しのコード化。位置ベースで固定見出しに上書きする
+    //    （件数不一致時は resolveSheetHeadings が null を返し、AI出力見出しのまま表示される）
+    const fixedHeadings = resolveSheetHeadings(
+      formData.mode,
+      d.sheetMode,
+      sheet.sections.length,
+    );
+    const headingOf = (s: SheetSection): string => {
+      const idx = sheet.sections.indexOf(s);
+      return (fixedHeadings && fixedHeadings[idx]) || stripEmoji(s.heading);
+    };
     const intro = sheet.sections.find((s) => s.heading.includes("悩み"));
     // 💡 慎重モードでは「知っておいていただきたいこと」がこの枠に入る（比較表・おすすめを出さない代わりの本文セクション）
     // 💡 insurance_firstモードの見出しは「次の一歩の参考」になるため振り分けに含める
@@ -2624,7 +2769,7 @@ export default function Page() {
             content: (
               <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
                 <SectionHead gold bare>
-                  {stripEmoji(s.heading)}
+                  {headingOf(s)}
                 </SectionHead>
                 <div
                   className="text-[13px] leading-[2] text-ink"
@@ -2656,12 +2801,14 @@ export default function Page() {
             content: (
               <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
                 <SectionHead gold bare>
-                  {stripEmoji(recommend.heading)}
+                  {headingOf(recommend)}
                 </SectionHead>
                 <div
                   className="text-[13px] leading-[2] text-ink"
                   dangerouslySetInnerHTML={{
-                    __html: renderInline(recommend.body),
+                    __html: renderInline(
+                      applySheetOpener(recommend.body, d.sheetMode, formData.mode),
+                    ),
                   }}
                 />
               </div>
@@ -2712,7 +2859,7 @@ export default function Page() {
             splittable: true,
             content: (
               <div className="mb-5">
-                <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+                <SectionHead>{headingOf(prosCons)}</SectionHead>
                 <div
                   className="text-[13px] leading-[2] text-ink"
                   dangerouslySetInnerHTML={{
@@ -2730,7 +2877,7 @@ export default function Page() {
               splittable: true,
               content: (
                 <div className="mb-5">
-                  <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+                  <SectionHead>{headingOf(prosCons)}</SectionHead>
                   <div
                     className="text-[13px] leading-[2] text-ink"
                     dangerouslySetInnerHTML={{
@@ -2748,7 +2895,7 @@ export default function Page() {
               content: (
                 <div className="mb-5">
                   <SectionHead gold>
-                    {stripEmoji(costSection.heading)}
+                    {headingOf(costSection)}
                   </SectionHead>
                   <div className="border border-line px-5 py-4">
                     <div
@@ -2776,7 +2923,7 @@ export default function Page() {
               content: (
                 <div className="mb-5">
                   <SectionHead>
-                    {stripEmoji(familySection.heading)}
+                    {headingOf(familySection)}
                   </SectionHead>
                   <div
                     className="text-[13px] leading-[2] text-ink"
@@ -2819,6 +2966,17 @@ export default function Page() {
   const CrownPatientSheet = () => {
     const d = decision as CrownDecision;
     const sheet = parsePatientSheet(result!.patientSheet);
+    // 💡 変更4：セクション見出しのコード化。位置ベースで固定見出しに上書きする
+    //    （件数不一致時は resolveSheetHeadings が null を返し、AI出力見出しのまま表示される）
+    const fixedHeadings = resolveSheetHeadings(
+      formData.mode,
+      d.sheetMode,
+      sheet.sections.length,
+    );
+    const headingOf = (s: SheetSection): string => {
+      const idx = sheet.sections.indexOf(s);
+      return (fixedHeadings && fixedHeadings[idx]) || stripEmoji(s.heading);
+    };
 
     // 💡 careful モードと通常モードで抽出する見出しを分ける
     const intro = sheet.sections.find(
@@ -2943,7 +3101,7 @@ export default function Page() {
             content: (
               <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
                 <SectionHead gold bare>
-                  {stripEmoji(s.heading)}
+                  {headingOf(s)}
                 </SectionHead>
                 <div
                   className="text-[13px] leading-[2] text-ink"
@@ -2975,12 +3133,14 @@ export default function Page() {
             content: (
               <div className="bg-tint border-l-[3px] border-l-gold px-5 py-4 mb-5">
                 <SectionHead gold bare>
-                  {stripEmoji(recommend.heading)}
+                  {headingOf(recommend)}
                 </SectionHead>
                 <div
                   className="text-[13px] leading-[2] text-ink"
                   dangerouslySetInnerHTML={{
-                    __html: renderInline(recommend.body),
+                    __html: renderInline(
+                      applySheetOpener(recommend.body, d.sheetMode, formData.mode),
+                    ),
                   }}
                 />
               </div>
@@ -3031,7 +3191,7 @@ export default function Page() {
             splittable: true,
             content: (
               <div className="mb-5">
-                <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+                <SectionHead>{headingOf(prosCons)}</SectionHead>
                 <div
                   className="text-[13px] leading-[2] text-ink"
                   dangerouslySetInnerHTML={{
@@ -3049,7 +3209,7 @@ export default function Page() {
               splittable: true,
               content: (
                 <div className="mb-5">
-                  <SectionHead>{stripEmoji(prosCons.heading)}</SectionHead>
+                  <SectionHead>{headingOf(prosCons)}</SectionHead>
                   <div
                     className="text-[13px] leading-[2] text-ink"
                     dangerouslySetInnerHTML={{
@@ -3067,7 +3227,7 @@ export default function Page() {
               content: (
                 <div className="mb-5">
                   <SectionHead gold>
-                    {stripEmoji(costSection.heading)}
+                    {headingOf(costSection)}
                   </SectionHead>
                   <div className="border border-line px-5 py-4">
                     <div
@@ -3491,7 +3651,11 @@ export default function Page() {
                 {activeTab === "talk" &&
                   (() => {
                     // 💡 マーカー文字列ではなく、パース結果のステップ配列の有無で表示判定（マーカーは API 側で除去済みのため）
-                    const parsed = parseTalkKeywords(result.talkScript);
+                    const parsed = parseTalkKeywords(
+                      result.talkScript,
+                      formData.mode,
+                      decision.sheetMode,
+                    );
                     if (!parsed || parsed.steps.length === 0) return null;
                     const kwData = talkView === "keyword" ? parsed : null;
                     return (
