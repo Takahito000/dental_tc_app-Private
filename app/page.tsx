@@ -440,8 +440,52 @@ export default function LandingPage() {
 
           <div className="mt-10 rounded-xl border border-gold/40 bg-white p-7">
             <h3 className="font-bold">費用対効果について</h3>
-            <p className="mt-3 text-sm leading-loose text-ink-soft">
-              自費のクラウン治療が月に1本増えるだけで、年間のご利用料金を回収できる計算です。まずは無料トライアルで、貴院での効果をご確認ください。
+            {/* 💡 試算例グラフ（HTML/CSSのみ・画像不使用。バーはフラット矩形、数字は明朝系フォント） */}
+            <h4 className="mt-4 text-sm font-bold text-ink">
+              試算例：月に1件ずつ成約した場合
+            </h4>
+            {/* 💡 内訳（控えめ・バーなし）。合計と月額の対比が視覚的な主役 */}
+            <p className="mt-3 text-xs leading-relaxed text-ink-soft">
+              <span className="font-serif-jp">義歯 1件成約 約150,000円</span>
+              <span className="mx-1.5 text-gold">＋</span>
+              <br className="sm:hidden" />
+              <span className="font-serif-jp">クラウン 1件成約 約100,000円〜</span>
+            </p>
+            <div className="mt-4 space-y-3">
+              {/* 合計（最長・ゴールド） */}
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <span className="w-24 shrink-0 text-xs font-bold text-ink sm:w-28 sm:text-sm">
+                  合計
+                </span>
+                <div className="h-2.5 min-w-4 flex-1 bg-line">
+                  <div className="h-full bg-gold" style={{ width: "100%" }} />
+                </div>
+                <span className="shrink-0 whitespace-nowrap font-serif-jp text-xs font-bold text-ink sm:text-sm">
+                  約250,000円〜
+                </span>
+              </div>
+              {/* 月額費用（全長は合計と同じ。うちネイビー部分が16%・ダークネイビー系） */}
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <span className="w-24 shrink-0 text-xs font-bold text-ink sm:w-28 sm:text-sm">
+                  月額費用
+                </span>
+                <div className="h-2.5 min-w-4 flex-1 bg-line">
+                  <div className="h-full bg-ink-soft" style={{ width: "16%" }} />
+                </div>
+                <span className="shrink-0 whitespace-nowrap font-serif-jp text-xs font-bold text-ink sm:text-sm">
+                  39,800円<span className="text-[10px] font-normal text-ink-soft">（税別）</span>
+                </span>
+              </div>
+            </div>
+            {/* 注記 */}
+            <p className="mt-4 text-[11px] leading-relaxed text-ink-soft">
+              ※片顎の場合の試算です。医院の設定価格により異なります
+              <br />
+              ※成約を保証するものではありません
+            </p>
+            {/* 補足文 */}
+            <p className="mt-4 text-sm font-bold leading-relaxed text-ink">
+              月に1件ずつの成約で、費用を大きく上回るリターンが見込めます。
             </p>
           </div>
 
