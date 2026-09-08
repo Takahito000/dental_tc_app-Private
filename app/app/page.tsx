@@ -191,43 +191,134 @@ const INITIAL_CROWN_FORM_DATA: CrownFormState = {
 // 💡 分岐・第一候補選定・価格・費用換算はこの関数で確定させ、Difyプロンプトには結果のみ注入する。
 //    プロンプト側での再判定は禁止（ハルシネーション防止）。ここを変更したらDifyプロンプトの
 //    「システム判定結果」セクションと整合しているか必ず確認すること。
+// 💡 価格モデル（医院別価格設定 Phase1）: priceMin が null で priceMax のみ = 単一価格。
+//    両方に値 = レンジ。素材キー（ELASTIC_STANDARD 等）は hospital 側の material_key と一致させる。
 const CANDIDATES = {
   ELASTIC_STANDARD: {
     name: "弾性樹脂床（ノンクラスプデンチャー）スタンダード",
-    priceRange: "約15万円（片顎・税込）",
+    priceMin: null,
+    priceMax: 150000,
     midPrice: 150000,
   },
   ELASTIC_PREMIUM: {
     name: "弾性樹脂床（ノンクラスプデンチャー）プレミアム",
-    priceRange: "約25万円（片顎・税込）",
+    priceMin: null,
+    priceMax: 250000,
     midPrice: 250000,
   },
   METAL_PD: {
     name: "金属床（コバルトクロム）部分義歯",
-    priceRange: "約25〜40万円（片顎・税込）",
+    priceMin: 250000,
+    priceMax: 400000,
     midPrice: 325000,
   },
   METAL_FD: {
     name: "金属床（コバルトクロム）総義歯",
-    priceRange: "約25〜40万円（片顎・税込）",
+    priceMin: 250000,
+    priceMax: 400000,
     midPrice: 325000,
   },
   SILICONE: {
     name: "シリコーン（軟性裏装）付き義歯",
-    priceRange:
-      "約27万円（義歯本体込・片顎・税込）／既存の入れ歯への後付け加工の場合は約10〜15万円",
+    priceMin: null,
+    priceMax: 270000,
     midPrice: 270000,
   },
   PRECISION: {
     name: "精密義歯（オーダーメイド精密型）",
-    priceRange: "約33〜55万円（片顎・税込）",
+    priceMin: 330000,
+    priceMax: 550000,
     midPrice: 440000,
   },
 } as const;
 type Candidate = (typeof CANDIDATES)[keyof typeof CANDIDATES];
+type DentureMaterialKey = keyof typeof CANDIDATES;
 
-// 💡 費用換算: レンジ中央値 ÷ 5年 ÷ 365日（プロンプトには計算させない）
-const pricePerDayOf = (c: Candidate) => `約${Math.round(c.midPrice / 1825)}円`;
+// ===== 医院別価格設定（Phase1）: 価格表示・日割りの生成を一元化する =====
+// 💡 医院行の上書き値。キーは `${app_kind}:${material_key}`（app_kind は "denture" | "crown"）。
+//    初期ロード時に /api/clinic-prices から取得し、行なし・通信失敗時は空マップのまま
+//    （= デフォルト定数で動作し続けるフォールバック）。
+export type ClinicPriceOverride = { priceMin: number | null; priceMax: number };
+export type ClinicPriceMap = Record<string, ClinicPriceOverride>;
+
+// 価格解決結果。fromClinic = 医院別行で上書きされたか（日割りの算出基準の出所判定に使う）。
+// 出所ベースの確定仕様: デフォルト定数は midPrice（一般相場レンジの中央値）、
+// 医院別上書きは priceMax で日割りを算出する。レンジかどうかで計算式を分けない。
+type ResolvedPrice = {
+  priceMin: number | null;
+  priceMax: number;
+  midPrice: number; // デフォルト定数の日割り基準（医院上書き時は priceMax を入れ未使用とする）
+  fromClinic: boolean;
+};
+
+// 💡 価格表示の唯一の生成経路。比較表描画・candidatePriceRange 生成の双方がこの関数だけを使う。
+//    単一価格 → "{priceMaxカンマ区切り}円"、レンジ → "{min}〜{max}円"（カンマ区切り・接尾辞は現行踏襲）
+const formatYen = (n: number) => n.toLocaleString("ja-JP");
+
+// 義歯: candidatePriceRange（Dify注入）用
+const denturePriceRangeText = (p: ResolvedPrice) =>
+  p.priceMin == null
+    ? `約${formatYen(p.priceMax)}円（片顎・税込）`
+    : `約${formatYen(p.priceMin)}〜${formatYen(p.priceMax)}円（片顎・税込）`;
+
+// 義歯: 比較表の費用セル用
+const dentureTableCostText = (p: ResolvedPrice, key: string) => {
+  const amount =
+    p.priceMin == null
+      ? formatYen(p.priceMax)
+      : `${formatYen(p.priceMin)}〜${formatYen(p.priceMax)}`;
+  // 💡 シリコーンの後付け加工注記は既存文言を維持（数値のみ万→円表記へ変換）
+  const suffix =
+    key === "SILICONE"
+      ? "（税込・片額。後付けの場合は別途100,000〜150,000円程度）"
+      : "（税込・片額）";
+  return `約${amount}円${suffix}`;
+};
+
+// クラウン: candidatePriceRange と比較表の費用セルは現行で同一表記のため1関数で共用
+const crownPriceText = (p: ResolvedPrice) =>
+  p.priceMin == null
+    ? `${formatYen(p.priceMax)}円（税込）`
+    : `${formatYen(p.priceMin)}〜${formatYen(p.priceMax)}円（税込）`;
+
+// 💡 日割り（義歯のみ）: 出所ベースで一本化。デフォルト = midPrice ÷ 1825、医院上書き = priceMax ÷ 1825。
+//    分母 1825（= 5年×365日）はシステム定数のまま医院別にしない。
+//    端数処理は現行どおり Math.round（円単位四捨五入）を維持する。
+const pricePerDayText = (p: ResolvedPrice) =>
+  `約${Math.round((p.fromClinic ? p.priceMax : p.midPrice) / 1825)}円`;
+
+// 候補オブジェクト → 素材キーの逆引き（computeDecision 内のオブジェクト参照比較を維持するため）
+const DENTURE_KEY_BY_CANDIDATE = new Map<unknown, string>(
+  Object.entries(CANDIDATES).map(([k, v]) => [v, k]),
+);
+
+// 💡 価格解決の唯一の経路（§5-3）: デフォルト定数 → 医院行で上書き。
+//    不正データ（price_max 非数値・min > max）は無視してデフォルトにフォールバックする。
+const resolveDenturePrice = (
+  key: string,
+  overrides: ClinicPriceMap,
+): ResolvedPrice => {
+  const c = CANDIDATES[key as DentureMaterialKey];
+  const o = overrides[`denture:${key}`];
+  if (
+    o &&
+    typeof o.priceMax === "number" &&
+    (o.priceMin == null || o.priceMin <= o.priceMax)
+  ) {
+    return {
+      priceMin: o.priceMin,
+      priceMax: o.priceMax,
+      midPrice: o.priceMax,
+      fromClinic: true,
+    };
+  }
+  return {
+    priceMin: c.priceMin,
+    priceMax: c.priceMax,
+    midPrice: c.midPrice,
+    fromClinic: false,
+  };
+};
 
 // ===== Phase 1 固定テキスト（Difyプロンプト v2.1 定型文） =====
 // これらの文言はコード側で一元管理し、AI出力に依存しない。
@@ -364,7 +455,12 @@ const NOTE_TEXTS_DENTURE: Record<string, string> = {
 };
 
 // 義歯版比較表の自費列コンテンツ（監修者による後日レビュー対象）
-const DENTURE_COMPARISON_CONTENTS: Record<string, Record<string, string>> = {
+// 💡 cost（費用）は含めない。価格表示は dentureTableCostText（生成関数）の唯一経路で
+//    描画時に生成し、医院別価格の上書きにも対応する（Phase1）。
+const DENTURE_COMPARISON_CONTENTS: Record<
+  string,
+  Record<string, string>
+> = {
   elastic_standard: {
     purpose: "金属のバネを使わない、見た目に配慮した部分入れ歯",
     material: "弾性樹脂（金属のバネなし）",
@@ -373,7 +469,6 @@ const DENTURE_COMPARISON_CONTENTS: Record<string, Record<string, string>> = {
     experience:
       "笑ったときに金属が見えにくく、人前での表情に自信につながる可能性があります",
     visits: "3〜5回程度",
-    cost: "約15万円（税込・片額）",
   },
   elastic_premium: {
     purpose: "見た目と強度のバランスを取った部分入れ歯",
@@ -382,7 +477,6 @@ const DENTURE_COMPARISON_CONTENTS: Record<string, Record<string, string>> = {
     experience:
       "広い欠損でも見た目と使い心地のバランスを取りやすい可能性があります",
     visits: "4〜6回程度",
-    cost: "約25万円（税込・片額）",
   },
   metal: {
     purpose:
@@ -392,7 +486,6 @@ const DENTURE_COMPARISON_CONTENTS: Record<string, Record<string, string>> = {
     experience:
       "食べ物の温度が伝わりやすく、食事の楽しみにつながる可能性があります",
     visits: "4〜6回程度",
-    cost: "約25万〜40万円（税込・片額）",
   },
   silicone: {
     purpose: "歯ぐきへの当たりをやわらげることに特化した入れ歯",
@@ -401,7 +494,6 @@ const DENTURE_COMPARISON_CONTENTS: Record<string, Record<string, string>> = {
     experience:
       "当たりのやわらかさが、食事時の負担感の軽減につながる可能性があります",
     visits: "4〜6回程度",
-    cost: "約27万円（税込・片額。後付けの場合は別途10万〜15万円程度）",
   },
   precision: {
     purpose:
@@ -411,9 +503,18 @@ const DENTURE_COMPARISON_CONTENTS: Record<string, Record<string, string>> = {
     experience:
       "吸着・フィットの精度が、外れにくさの実感につながる可能性があります",
     visits: "6〜10回程度",
-    cost: "約33万〜55万円（税込・片額）",
   },
 };
+
+// 💡 firstCandidate 名称 → 素材キー（価格解決に使用。部分義歯／総義歯は名称で区別）
+function resolveDentureMaterialKey(firstCandidate: string): string {
+  if (firstCandidate.includes("スタンダード")) return "ELASTIC_STANDARD";
+  if (firstCandidate.includes("プレミアム")) return "ELASTIC_PREMIUM";
+  if (firstCandidate.includes("金属床"))
+    return firstCandidate.includes("部分") ? "METAL_PD" : "METAL_FD";
+  if (firstCandidate.includes("シリコーン")) return "SILICONE";
+  return "PRECISION";
+}
 
 function resolveDentureTableContent(firstCandidate: string) {
   if (firstCandidate.includes("スタンダード"))
@@ -435,7 +536,7 @@ type Decision = {
   noteFlags: string[];
 };
 
-function computeDecision(f: FormState): Decision {
+function computeDecision(f: FormState, overrides: ClinicPriceMap = {}): Decision {
   // P0: 慎重モード（要注意ワードが1つでもあれば他の全判定より優先）
   if (f.red_flag_words.some((w) => w !== "特になし")) {
     return {
@@ -510,11 +611,15 @@ function computeDecision(f: FormState): Decision {
   if (isMetal && f.cost_sensitivity !== "費用重視") noteFlags.push("ti_option");
   if (c === CANDIDATES.SILICONE) noteFlags.push("silicone_maintenance");
 
+  // 💡 価格は「デフォルト定数 → 医院行で上書き」の解決経路を経てから生成する（判定ロジック本体は不変）
+  const materialKey = DENTURE_KEY_BY_CANDIDATE.get(c) as string;
+  const price = resolveDenturePrice(materialKey, overrides);
+
   return {
     sheetMode,
     firstCandidate: c.name,
-    candidatePriceRange: c.priceRange,
-    pricePerDay: pricePerDayOf(c),
+    candidatePriceRange: denturePriceRangeText(price),
+    pricePerDay: pricePerDayText(price),
     noteFlags,
   };
 }
@@ -744,12 +849,20 @@ const cleanTableHtml = (html: string) => {
 function DentureComparisonTable({
   firstCandidate,
   sheetMode,
+  prices = {},
 }: {
   firstCandidate: string;
   sheetMode: Decision["sheetMode"];
+  prices?: ClinicPriceMap;
 }) {
   const badgeLabel = sheetMode === "insurance_first" ? "参考候補" : "第一候補";
   const content = resolveDentureTableContent(firstCandidate);
+  // 💡 費用セルは価格生成関数の唯一経路で描画時に生成（医院別価格の上書きに対応）
+  const materialKey = resolveDentureMaterialKey(firstCandidate);
+  const cost = dentureTableCostText(
+    resolveDenturePrice(materialKey, prices),
+    materialKey,
+  );
 
   const rows = [
     {
@@ -781,7 +894,7 @@ function DentureComparisonTable({
     {
       item: "費用",
       insurance: "保険適用（1〜3割負担）",
-      self: content.cost,
+      self: cost,
     },
   ];
 
@@ -821,24 +934,61 @@ function DentureComparisonTable({
 const CROWN_CANDIDATES = {
   FULL_ZIRCONIA: {
     name: "フルジルコニア",
-    price: "95,000円（税込）",
+    priceMin: null,
+    priceMax: 95000,
   },
   EMAX: {
     name: "e.max（ガラスセラミック）",
-    price: "100,000円（税込）",
+    priceMin: null,
+    priceMax: 100000,
   },
   ZIRCONIA_CERAMIC: {
     name: "ジルコニアセラミック",
-    price: "145,000円（税込）",
+    priceMin: null,
+    priceMax: 145000,
   },
   GOLD: {
     name: "ゴールド",
-    price: "180,000円（税込）",
+    priceMin: null,
+    priceMax: 180000,
   },
 } as const;
 
 type CrownCandidate =
   (typeof CROWN_CANDIDATES)[keyof typeof CROWN_CANDIDATES];
+
+// 候補オブジェクト → 素材キーの逆引き
+const CROWN_KEY_BY_CANDIDATE = new Map<unknown, string>(
+  Object.entries(CROWN_CANDIDATES).map(([k, v]) => [v, k]),
+);
+
+// 💡 クラウンの価格解決（デフォルト定数 → 医院行で上書き。resolveDenturePrice と同経路の考え方）
+const resolveCrownPrice = (
+  key: string,
+  overrides: ClinicPriceMap,
+): ResolvedPrice => {
+  const c =
+    CROWN_CANDIDATES[key as keyof typeof CROWN_CANDIDATES];
+  const o = overrides[`crown:${key}`];
+  if (
+    o &&
+    typeof o.priceMax === "number" &&
+    (o.priceMin == null || o.priceMin <= o.priceMax)
+  ) {
+    return {
+      priceMin: o.priceMin,
+      priceMax: o.priceMax,
+      midPrice: o.priceMax,
+      fromClinic: true,
+    };
+  }
+  return {
+    priceMin: c.priceMin,
+    priceMax: c.priceMax,
+    midPrice: c.priceMax,
+    fromClinic: false,
+  };
+};
 
 const INSURANCE_TEXT_CROWN =
   "保険の被せ物は、国の規則で使える素材や製作の工程が定められている、歯の基本的な機能を回復するためのものです。費用を抑えながら、しっかりとした治療を受けることができます。";
@@ -865,7 +1015,10 @@ type CrownDecision = {
 };
 
 // 💡 クラウン版判定ロジック（Phase 2）
-function computeCrownDecision(f: CrownFormState): CrownDecision {
+function computeCrownDecision(
+  f: CrownFormState,
+  overrides: ClinicPriceMap = {},
+): CrownDecision {
   // P0: 痛み・違和感あり → 慎重モード（第一候補なし）
   if (f.has_pain !== "特になし") {
     return {
@@ -930,10 +1083,14 @@ function computeCrownDecision(f: CrownFormState): CrownDecision {
 
   if (c === CROWN_CANDIDATES.GOLD) noteFlags.push("gold_price_note");
 
+  // 💡 価格は「デフォルト定数 → 医院行で上書き」の解決経路を経てから生成する（判定ロジック本体は不変）
+  const materialKey = CROWN_KEY_BY_CANDIDATE.get(c) as string;
+  const price = resolveCrownPrice(materialKey, overrides);
+
   return {
     sheetMode: "standard",
     firstCandidate: c.name,
-    candidatePriceRange: c.price,
+    candidatePriceRange: crownPriceText(price),
     noteFlags,
   };
 }
@@ -987,13 +1144,14 @@ const CROWN_INSURANCE_ROWS: Record<
   ],
 };
 
+// 💡 cost（費用）は含めない。描画時に crownPriceText（生成関数）で生成し、
+//    医院別価格の上書きに対応する（Phase1）。
 const CROWN_SELF_ROWS = [
   {
     key: "FULL_ZIRCONIA",
     name: CROWN_CANDIDATES.FULL_ZIRCONIA.name,
     appearance: "白い。奥歯でも自然な色合いに仕上がりやすい",
     strength: "硬く、割れにくい素材。咬む力が強い方にも選ばれやすい",
-    cost: CROWN_CANDIDATES.FULL_ZIRCONIA.price,
     hygiene: "表面に汚れがつきにくく、お手入れがしやすい傾向がある",
   },
   {
@@ -1001,7 +1159,6 @@ const CROWN_SELF_ROWS = [
     name: CROWN_CANDIDATES.EMAX.name,
     appearance: "光の透け方が自然で、前歯に近い仕上がりになりやすい",
     strength: "適度な強度。前歯・小臼歯向け",
-    cost: CROWN_CANDIDATES.EMAX.price,
     hygiene: "滑らかな表面で、汚れがつきにくい傾向がある",
   },
   {
@@ -1009,7 +1166,6 @@ const CROWN_SELF_ROWS = [
     name: CROWN_CANDIDATES.ZIRCONIA_CERAMIC.name,
     appearance: "白さと透明感のバランス。自然な歯のような仕上がり",
     strength: "強度と審美性のバランスが取れた素材",
-    cost: CROWN_CANDIDATES.ZIRCONIA_CERAMIC.price,
     hygiene: "表面が滑らかで、お手入れがしやすい傾向がある",
   },
   {
@@ -1017,7 +1173,6 @@ const CROWN_SELF_ROWS = [
     name: CROWN_CANDIDATES.GOLD.name,
     appearance: "金属色（金色）",
     strength: "適合性が高く、長期的に安定しやすい",
-    cost: CROWN_CANDIDATES.GOLD.price,
     hygiene: "表面が滑らかで、細菌の付着が少ない傾向がある",
   },
 ];
@@ -1035,18 +1190,21 @@ function CrownComparisonTable({
   sheetMode,
   targetSite,
   metalFreeOnly,
+  prices = {},
 }: {
   firstCandidate: string;
   sheetMode: CrownDecision["sheetMode"];
   targetSite: CrownFormState["target_site"];
   metalFreeOnly: boolean;
+  prices?: ClinicPriceMap;
 }) {
   const insuranceRows = CROWN_INSURANCE_ROWS[targetSite].filter(
     (r) => !metalFreeOnly || r.name !== "金属冠（銀歯）",
   );
+  // 💡 費用セルは価格生成関数の唯一経路で描画時に生成（医院別価格の上書きに対応）
   const selfRows = CROWN_SELF_ROWS.filter(
     (r) => !metalFreeOnly || r.key !== "GOLD",
-  );
+  ).map((r) => ({ ...r, cost: crownPriceText(resolveCrownPrice(r.key, prices)) }));
 
   const headerLabels = [
     "項目",
@@ -1767,6 +1925,9 @@ export default function Page() {
   const [printingPdf, setPrintingPdf] = useState(false);
   const [showReset, setShowReset] = useState(false);
   const [generateStartedAt, setGenerateStartedAt] = useState<number | null>(null);
+  // 💡 医院別価格設定（Phase1）: 初期ロード時に /api/clinic-prices から取得した価格上書き行。
+  //    行なし・通信失敗・タイムアウト時は空マップのまま = デフォルト定数で動作し続ける（フォールバック）。
+  const [clinicPrices, setClinicPrices] = useState<ClinicPriceMap>({});
 
   const previewAreaRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
@@ -1819,6 +1980,36 @@ export default function Page() {
         .catch(() => {
           setClinicName("");
           setIsDemo(false);
+        });
+
+      // 💡 医院別価格の取得（Phase1）。テーブル不存在・通信失敗・未登録はすべて
+      //    空マップのまま残し、デフォルト価格定数で動作し続ける（フォールバック）。
+      fetch(`/api/clinic-prices?t=${encodeURIComponent(activeToken)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d || !Array.isArray(d.prices)) return;
+          const map: ClinicPriceMap = {};
+          for (const row of d.prices) {
+            if (
+              !row ||
+              (row.app_kind !== "denture" && row.app_kind !== "crown") ||
+              typeof row.material_key !== "string" ||
+              typeof row.price_max !== "number"
+            ) {
+              continue;
+            }
+            const min = typeof row.price_min === "number" ? row.price_min : null;
+            // min > max の不正データは無視してデフォルトにフォールバックする
+            if (min !== null && min > row.price_max) continue;
+            map[`${row.app_kind}:${row.material_key}`] = {
+              priceMin: min,
+              priceMax: row.price_max,
+            };
+          }
+          setClinicPrices(map);
+        })
+        .catch(() => {
+          /* フォールバック: デフォルト価格定数のまま動作し続ける */
         });
     } else {
       setClinicName(""); // トークンなし：シートには医院名を出さない
@@ -1965,8 +2156,8 @@ export default function Page() {
     // 💡 判定テーブルで候補・価格・換算・フラグを確定（AIには結果のみ渡す）
     const decision =
       formData.mode === "crown"
-        ? computeCrownDecision(formData as CrownFormState)
-        : computeDecision(formData);
+        ? computeCrownDecision(formData as CrownFormState, clinicPrices)
+        : computeDecision(formData, clinicPrices);
 
     const basePayload = {
       mode: formData.mode,
@@ -2299,8 +2490,8 @@ export default function Page() {
   // 💡 判定結果はレンダリング・崩れ検知の両方で使うためここで確定
   const decision =
     formData.mode === "crown"
-      ? computeCrownDecision(formData as CrownFormState)
-      : computeDecision(formData);
+      ? computeCrownDecision(formData as CrownFormState, clinicPrices)
+      : computeDecision(formData, clinicPrices);
 
   // 💡 カンペが新フォーマット（【キーワード】併記）かどうか。旧形式の生成結果では切替ボタン自体を出さない
   const talkKeywordAvailable = result
@@ -2832,6 +3023,7 @@ export default function Page() {
                 <DentureComparisonTable
                   firstCandidate={d.firstCandidate}
                   sheetMode={d.sheetMode}
+                  prices={clinicPrices}
                 />
               </div>
             ),
@@ -3165,6 +3357,7 @@ export default function Page() {
                 sheetMode={d.sheetMode}
                 targetSite={f.target_site}
                 metalFreeOnly={f.metal_allergy !== "特になし"}
+                prices={clinicPrices}
               />
             </div>
           ),

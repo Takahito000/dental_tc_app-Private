@@ -229,5 +229,62 @@ assert(
   "回帰4: カンマ区切りの金額をブロック: " + JSON.stringify(r4.matches)
 );
 
+// ===== 医院別価格（Phase1）T9: 新フォーマット注入時の照合 =====
+// デフォルトの新フォーマット注入（カンマ区切り円表記）: AI出力が注入値と一致すればPASS
+const t9DentureBase = {
+  mode: "denture",
+  candidate_price_range: "約250,000〜400,000円（片顎・税込）",
+  price_per_day: "約178円",
+};
+const t9a = makeValidator(
+  t9DentureBase,
+  "金属床は約25万円〜40万円（片顎・税込）で、1日あたり約178円です。"
+);
+assert(
+  t9a.items.length === 0,
+  "T9a: 義歯新フォーマット注入で、万円表記のAI出力（25万・40万・178円）は照合して許可"
+);
+const t9b = makeValidator(
+  t9DentureBase,
+  "費用は50万円です。"
+);
+assert(
+  t9b.items.some((i) => i === "金額の混入"),
+  "T9b: 義歯新フォーマット注入で、創作金額（50万円）はブロック"
+);
+// crown 医院価格注入（単一・レンジ）: 一致すればPASS、創作はブロック
+const t9c = makeValidator(
+  { mode: "crown", candidate_price_range: "121,000円（税込）", sheet_mode: "standard" },
+  "フルジルコニアは121,000円（税込）です。"
+);
+assert(
+  t9c.items.length === 0,
+  "T9c: crown 単一価格注入（121,000円）と一致するAI出力は許可"
+);
+const t9d = makeValidator(
+  { mode: "crown", candidate_price_range: "121,000円（税込）", sheet_mode: "standard" },
+  "フルジルコニアは130,000円（税込）です。"
+);
+assert(
+  t9d.items.some((i) => i === "金額の混入"),
+  "T9d: crown 単一価格注入と一致しない金額（130,000円）はブロック"
+);
+const t9e = makeValidator(
+  { mode: "crown", candidate_price_range: "100,000〜120,000円（税込）", sheet_mode: "standard" },
+  "e.maxは10万円〜12万円（税込）のレンジです。"
+);
+assert(
+  t9e.items.length === 0,
+  "T9e: crown レンジ注入（100,000〜120,000円）と万円表記で一致するAI出力は許可"
+);
+const t9f = makeValidator(
+  { mode: "crown", candidate_price_range: "100,000〜120,000円（税込）", sheet_mode: "standard" },
+  "e.maxは15万円です。"
+);
+assert(
+  t9f.items.some((i) => i === "金額の混入"),
+  "T9f: crown レンジ注入と一致しない金額（15万円）はブロック"
+);
+
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURES`);
 process.exit(failures === 0 ? 0 : 1);
