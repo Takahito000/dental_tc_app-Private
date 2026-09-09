@@ -44,6 +44,10 @@ export const metadata = {
   twitter: {
     card: "summary_large_image",
   },
+  // 💡 Search Console 所有権確認用メタタグ
+  verification: {
+    google: "OSnODGt1QlecYn0R2FQjQ-pwsNAZr2hBnqRFablXc6w",
+  },
   // 💡 PWA化: iOSでホーム画面に追加した際にアプリとして起動させる
   appleWebApp: {
     capable: true,
