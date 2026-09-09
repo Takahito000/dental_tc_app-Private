@@ -202,6 +202,36 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ==================== セクション3.5：思想（CONCEPT） ==================== */}
+      {/* 💡 このページで唯一の暗色セクション（bg-accent）。装飾は既存セクションと同じ SectionLabel のみ */}
+      <section className="bg-accent">
+        <div className="mx-auto max-w-5xl px-5 py-20 md:py-32">
+          <SectionLabel>CONCEPT</SectionLabel>
+          <h2 className="font-serif-jp text-2xl font-bold leading-relaxed text-paper md:text-4xl">
+            AIは、選択肢を可視化する。寄り添うのは、人。
+          </h2>
+          <div className="mt-8 max-w-2xl space-y-6 leading-loose text-paper/90 md:mt-10">
+            <p>
+              デンピストAIの役割は、患者さまごとの選択肢を中立な一枚のシートにすることまで。
+            </p>
+            <p>
+              シートを手に、患者さまに寄り添って伝えるのは、スタッフの皆さま。
+              <br />
+              口腔内を診て、医学的な判断を担うのは、先生。
+              <br />
+              そして選ぶのは、患者さま自身です。
+            </p>
+            <p>
+              使い続けるほどに、医院の中で「選択肢を届ける」という
+              <br />
+              仕組みそのものが育っていく。
+              <br />
+              デンピストAIは、カウンセリングの力を、医院に残すツールです。
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* ==================== セクション4：特徴3点 ==================== */}
       <section className="border-y border-line bg-tint">
         <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
@@ -353,6 +383,9 @@ export default function LandingPage() {
           <blockquote className="mt-10 rounded-xl border border-line bg-white p-8 leading-loose md:p-10">
             <p>
               カウンセリングの現場でずっと感じていたのは、『伝えたいのに、伝わらない』というもどかしさでした。自費の提案に躊躇してしまうのは、売り込みたくないという優しさの裏返しです。でも、選択肢を知らないまま決めてしまう患者さんを何度も見てきました。伝えることを、仕組みに変えたい。デンピストAIには、私が現場で培ってきたカウンセリングの型をすべて込めています。
+            </p>
+            <p className="mt-6">
+              大事にしたいのは、このツールがカウンセリングの「代わり」にならないことです。シートを使いながら、スタッフが患者さまに提案を重ねていく。その積み重ねが、その医院ならではのカウンセリングの仕組みを育てます。患者さまの選択肢を広げることが、医院にも、スタッフにも、良いことだと信じています。
             </p>
             {/* 💡 メッセージ〜署名の間隔はモバイルのみ1段階詰める */}
             <p className="mt-3 text-right font-bold md:mt-6">―― 山岸 雪乃</p>
@@ -577,6 +610,10 @@ export default function LandingPage() {
           <SerifHeading>よくあるご質問</SerifHeading>
           <dl className="mt-10 space-y-6">
             {[
+              {
+                q: "AIが診断や提案まで代行してくれますか？",
+                a: "いいえ。デンピストAIが生成するのは、患者さまごとの選択肢の比較シートです。診断・治療方針の決定は歯科医師が行い、患者さまへの提案はスタッフが行います。AIは「選択肢を見える化する」役割に徹する設計です。",
+              },
               {
                 q: "機器の導入は必要ですか？",
                 a: "不要です。インターネットに接続されたスマートフォン・タブレットまたはPCがあれば、そのままご利用いただけます。",
