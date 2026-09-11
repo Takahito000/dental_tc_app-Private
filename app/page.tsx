@@ -397,9 +397,11 @@ export default function LandingPage() {
             <div>
               <p className="text-center font-serif-jp text-xl font-bold md:text-left">
                 <span className="mr-1 text-base font-bold text-accent">監修｜</span>
-                山岸 雪乃（歯科衛生士）
+                山岸 雪乃（<span className="font-bold text-accent">副院長</span> / 歯科衛生士）
               </p>
               <p className="mt-2 text-center text-sm text-ink-soft md:text-left">
+                自費義歯専門 歯科クリニック 副院長
+                <br />
                 一般社団法人日本歯科TC協会 北海道支部 理事
               </p>
 
@@ -435,7 +437,8 @@ export default function LandingPage() {
 
               {/* プロフィール文 */}
               <p className="mt-6 text-sm leading-loose md:mt-8">
-                歯科衛生士として15年目。自費義歯のカウンセリングを専門とし、2023年より年間2億円ペースの自費受注を継続。カウンセリング実績は4年間で772人。2022年より、歯科衛生士・TC向けセミナー（TC北海道支部オンラインセミナー、TC関東支部バトンリレーセミナー等）に登壇。京都の歯科医院では単独講師としてカウンセリング実践セミナーを担当するなど、自費カウンセリングの実践知を全国の歯科医療従事者に共有している。
+                <span className="font-bold text-accent">副院長</span>
+                として、自費義歯専門の歯科クリニックでカウンセリングと組織運営を牽引。自費義歯の受注は2023年より年間2億円ペースを継続し、カウンセリング実績は4年間で772人。2022年より歯科衛生士・TC向けセミナー（TC北海道支部オンラインセミナー、TC関東支部バトンリレーセミナー等）に登壇。京都の歯科医院では単独講師としてカウンセリング実践セミナーを担当するなど、その実践知を全国の歯科医療従事者に共有している。
               </p>
 
               {/* 経歴・メディア */}
