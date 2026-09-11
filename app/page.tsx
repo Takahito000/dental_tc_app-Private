@@ -34,10 +34,91 @@ function SerifHeading({
 }
 
 export default function LandingPage() {
+  // 💡 JSON-LD 構造化データ（SEO）。見た目には影響しない <script type="application/ld+json"> で出力する
+  const jsonLdSoftwareApplication = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "デンピストAI",
+    applicationCategory: "BusinessApplication",
+    description: "歯科医院向けAI自費カウンセリング支援ツール",
+    offers: {
+      "@type": "AggregateOffer",
+      priceCurrency: "JPY",
+      lowPrice: "19800",
+      highPrice: "39800",
+      description:
+        "税別・月額。無料トライアル4週間あり。モニタープラン19,800円/月（5ヶ月間限定）、スタンダードプラン39,800円/月",
+    },
+    provider: {
+      "@type": "Organization",
+      name: "CS.lab",
+      url: "https://cs-lab.net",
+    },
+  };
+  const jsonLdFaq = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: "AIが診断や提案まで代行してくれますか？",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "いいえ。デンピストAIが生成するのは、患者さまごとの選択肢の比較シートです。診断・治療方針の決定は歯科医師が行い、患者さまへの提案はスタッフが行います。AIは「選択肢を見える化する」役割に徹する設計です。",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "機器の導入は必要ですか？",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "不要です。インターネットに接続されたスマートフォン・タブレットまたはPCがあれば、そのままご利用いただけます。",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "患者さまの個人情報の取り扱いは？",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "患者さまのお名前・連絡先などの個人情報は一切入力・保存されません。入力は治療方針に関する13項目の選択のみで、生成されるレポートには個人を特定できる情報が含まれません。個人情報保護法上の取り扱い負担はありません。",
+        },
+      },
+      {
+        "@type": "Question",
+        name: "トライアル終了後、必ず有料プランになりますか？",
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "いいえ。継続のご判断はトライアル終了時にいただきます。自動で課金されることはありません。",
+        },
+      },
+    ],
+  };
+  const jsonLdOrganization = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "CS.lab",
+    url: "https://cs-lab.net",
+  };
+
   return (
     <div className="text-ink">
       {/* 💡 申し込みフォーム表示のGA4計測（セッション中1回のみ） */}
       <ViewFormTracker />
+      {/* 💡 構造化データ（検索エンジン向け。表示には影響しない） */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLdSoftwareApplication),
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdOrganization) }}
+      />
       {/* ==================== ヘッダー ==================== */}
       <header className="sticky top-0 z-50 border-b border-line bg-paper backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">

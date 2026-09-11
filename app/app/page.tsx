@@ -513,6 +513,11 @@ function resolveDentureMaterialKey(firstCandidate: string): string {
   if (firstCandidate.includes("金属床"))
     return firstCandidate.includes("部分") ? "METAL_PD" : "METAL_FD";
   if (firstCandidate.includes("シリコーン")) return "SILICONE";
+  // 💡 PRECISION のフォールバックには「精密義歯の正常系」と「本当に不一致の異常系」が混在する。
+  //    警告は異常系だけで発火させる（参照比較が将来壊れた場合の静黙バグ検知）
+  if (!firstCandidate.includes("精密")) {
+    console.warn("[clinic-prices] 候補→キー逆引きが全候補不一致。PRECISIONにフォールバック", firstCandidate);
+  }
   return "PRECISION";
 }
 
