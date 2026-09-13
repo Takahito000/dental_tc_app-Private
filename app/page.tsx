@@ -606,6 +606,20 @@ export default function LandingPage() {
             </p>
           </div>
 
+          {/* 組織力チェックへの接続カード（費用対効果カードの直後・既存バーは維持） */}
+          <div className="mt-6 rounded-xl border border-accent/30 bg-accent-tint p-7">
+            <h3 className="font-bold">貴院への導入効果を、詳しく分析します</h3>
+            <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+              8問・約2分の回答で、貴院の組織の状態と見込み利益を試算します
+            </p>
+            <a
+              href="/check"
+              className="mt-5 inline-block rounded-lg bg-accent px-6 py-3 text-sm font-bold text-paper transition-opacity hover:opacity-90"
+            >
+              詳細分析をはじめる
+            </a>
+          </div>
+
           <div className="mt-8 overflow-hidden rounded-xl border border-line bg-white">
             <table className="w-full border-collapse text-sm">
               <thead>
