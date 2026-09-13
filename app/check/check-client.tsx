@@ -89,38 +89,46 @@ export default function CheckClient() {
     }
     // E1
     setE1(code as E1Code);
+    persistResult(answers, code as E1Code);
     setStep("result");
   };
 
-  // 結果確定時：匿名保存（fire-and-forget）＋ shindan_complete
-  useEffect(() => {
-    if (step !== "result" || directType || !result) return;
+  // ---------- 結果確定時の匿名保存（fire-and-forget・失敗はconsole.errorで可視化） ----------
+  const persistResult = (finalAnswers: AnswerCode[], e1Code: E1Code) => {
+    const r = computeResult(
+      judgeAxis(finalAnswers.slice(0, 4)),
+      judgeAxis(finalAnswers.slice(4, 8))
+    );
+    const orgType = r.kind === "type" ? String(r.type) : "partial";
     window.gtag?.("event", "shindan_complete");
-    const orgType =
-      result.kind === "type" ? String(result.type) : "partial";
-    void fetch("/api/org-check", {
+    fetch("/api/org-check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         answers: {
-          q1: answers[0],
-          q2: answers[1],
-          q3: answers[2],
-          q4: answers[3],
-          q5: answers[4],
-          q6: answers[5],
-          q7: answers[6],
-          q8: answers[7],
-          e1,
+          q1: finalAnswers[0],
+          q2: finalAnswers[1],
+          q3: finalAnswers[2],
+          q4: finalAnswers[3],
+          q5: finalAnswers[4],
+          q6: finalAnswers[5],
+          q7: finalAnswers[6],
+          q8: finalAnswers[7],
+          e1: e1Code,
         },
         org_type: orgType,
         utm_source: utmSource,
       }),
-    }).catch(() => {
-      /* 保存失敗でも結果表示を妨げない */
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+    })
+      .then((res) => {
+        if (!res.ok) {
+          console.error("[org-check] 回答保存失敗: HTTP", res.status);
+        }
+      })
+      .catch((err) => {
+        console.error("[org-check] 回答保存fetch例外:", err);
+      });
+  };
 
   // ---------- 結果シェア（フルタイプのみ・型名の直接露出を抑える） ----------
   const share = async () => {
