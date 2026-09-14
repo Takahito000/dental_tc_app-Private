@@ -3573,6 +3573,15 @@ export default function Page() {
           </div>
           {/* 💡 医院名はこの接続状況ピルに集約（旧ヘッダーバッジ・フォーム見出しバッジ���重複表示を廃止）。「衛生士モード」表記は他モードがある誤解を招くため廃止。担当衛生士名はシートの「担当」に印字されるためモバイルでも表示必須 */}
           <div className="flex items-center gap-2">
+            {/* 💡 発行ログ一覧への導線（トークン引き継ぎ必須。LPには導線を置かない方針どおりツール内のみ） */}
+            {token && (
+              <a
+                href={`/app/logs?t=${encodeURIComponent(token)}`}
+                className="text-xs font-bold text-accent hover:underline underline-offset-2"
+              >
+                発行ログ
+              </a>
+            )}
             <div
               className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 border ${
                 token && clinicName
@@ -3963,6 +3972,17 @@ export default function Page() {
                       </div>
                     );
                   })()}
+                {/* 💡 発行ログ一覧への導線（生成完了画面の下部。トークン引き継ぎ必須） */}
+                {token && (
+                  <div className="no-print flex w-full justify-end px-1 pt-1">
+                    <a
+                      href={`/app/logs?t=${encodeURIComponent(token)}`}
+                      className="text-xs font-bold text-accent hover:underline underline-offset-2"
+                    >
+                      発行ログで一覧を見る
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
