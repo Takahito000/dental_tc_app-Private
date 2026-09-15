@@ -33,6 +33,91 @@ function SerifHeading({
   );
 }
 
+// ==================== CONCEPTセクション フェーズ図 ====================
+// 患者さまの決定までの5フェーズ。muted=デンピストAIの範囲外（グレーアウト表示）
+type ConceptPhase = {
+  no: string;
+  title: string;
+  note: string;
+  muted?: boolean;
+  inScope?: boolean; // デンピストAIが担う領域（Phase 3〜4）
+};
+
+// 表示順：Phase 1→5。"wall" はPhase 2と3の間の「心理的ブロックの壁」
+const CONCEPT_TIMELINE: (ConceptPhase | "wall")[] = [
+  {
+    no: "Phase 1",
+    title: "問診・ヒアリング",
+    note: "ドクター・スタッフの領域（デンピストAIの範囲外）",
+    muted: true,
+  },
+  {
+    no: "Phase 2",
+    title: "検査・診断",
+    note: "ドクターの領域（デンピストAIの範囲外）",
+    muted: true,
+  },
+  "wall",
+  {
+    no: "Phase 3",
+    title: "選択肢の提示",
+    note: "比較シート・トークスクリプトを自動生成",
+    inScope: true,
+  },
+  {
+    no: "Phase 4",
+    title: "持ち帰り検討",
+    note: "シートが家族への説明を支える",
+    inScope: true,
+  },
+  {
+    no: "Phase 5",
+    title: "合意・カルテ記録",
+    note: "カルテの仕事（デンピストAIの範囲外）",
+    muted: true,
+  },
+];
+
+function ConceptPhaseBox({
+  phase,
+  compact = false,
+}: {
+  phase: ConceptPhase;
+  compact?: boolean; // モバイル用：「Phase N タイトル」を1行に圧縮し、注記を2行目に
+}) {
+  const noColor = phase.muted ? "text-paper/40" : "text-gold";
+  const titleColor = phase.muted ? "text-paper/50" : "text-paper";
+  const noteColor = phase.muted ? "text-paper/40" : "text-paper/60";
+  if (compact) {
+    return (
+      <>
+        <p>
+          <span className={`text-[10px] font-bold tracking-widest ${noColor}`}>
+            {phase.no}
+          </span>
+          <span className={`ml-2 text-sm font-bold ${titleColor}`}>
+            {phase.title}
+          </span>
+        </p>
+        <p className={`mt-1 text-[11px] leading-relaxed ${noteColor}`}>
+          {phase.note}
+        </p>
+      </>
+    );
+  }
+  return (
+    <>
+      <p className={`text-[10px] font-bold tracking-widest ${noColor}`}>
+        {phase.no}
+      </p>
+      <p className={`mt-1.5 text-sm font-bold ${titleColor}`}>{phase.title}</p>
+      <p className={`mt-1.5 text-[11px] leading-relaxed ${noteColor}`}>
+        {phase.note}
+      </p>
+    </>
+  );
+}
+
 export default function LandingPage() {
   // 💡 JSON-LD 構造化データ（SEO）。見た目には影響しない <script type="application/ld+json"> で出力する
   const jsonLdSoftwareApplication = {
@@ -309,6 +394,113 @@ export default function LandingPage() {
               <br />
               デンピストAIは、カウンセリングの力を、医院に残すツールです。
             </p>
+          </div>
+
+          {/* フェーズ図（画像不使用。HTML/CSSのみ） */}
+          <div className="mt-14 max-w-4xl">
+            {/* PC：ブラケット（壁〜Phase 4をまたぐ。「デンピストAIが担う領域」） */}
+            <div className="mb-3 hidden grid-cols-[1fr_1fr_16px_1fr_1fr_1fr] gap-3 md:grid">
+              <div />
+              <div />
+              <div className="relative col-span-3">
+                <p className="mb-1.5 text-center text-[11px] font-bold tracking-wider text-gold">
+                  デンピストAIが担う領域
+                </p>
+                <div className="relative border-t-2 border-gold">
+                  <span className="absolute -top-0.5 left-0 h-2 w-0.5 bg-gold" />
+                  <span className="absolute -top-0.5 right-0 h-2 w-0.5 bg-gold" />
+                </div>
+              </div>
+              <div />
+            </div>
+            {/* PC：横タイムライン */}
+            <ol className="hidden grid-cols-[1fr_1fr_16px_1fr_1fr_1fr] items-stretch gap-3 md:grid">
+              {CONCEPT_TIMELINE.map((item) =>
+                item === "wall" ? (
+                  <li key="wall" className="relative flex flex-col items-center gap-2 py-1">
+                    <div className="w-1 flex-1 bg-gold/70" aria-hidden="true" />
+                    <span
+                      aria-hidden="true"
+                      className="text-[10px] font-bold tracking-widest text-gold [writing-mode:vertical-rl]"
+                    >
+                      心理的ブロックの壁
+                    </span>
+                    <div className="w-1 flex-1 bg-gold/70" aria-hidden="true" />
+                    {/* 壁の注釈（壁の直下。ボックスより下の空間に1行で表示） */}
+                    <p className="absolute left-1/2 top-full mt-2 w-max -translate-x-1/2 whitespace-nowrap text-xs text-paper/70">
+                      『自費の提案は押し売りでは』という躊躇が、選択肢の提示を止める
+                    </p>
+                  </li>
+                ) : (
+                  <li
+                    key={item.no}
+                    className={`rounded-lg border p-4 ${
+                      item.muted ? "border-paper/15" : "border-paper/25"
+                    }`}
+                  >
+                    <ConceptPhaseBox phase={item} />
+                  </li>
+                ),
+              )}
+            </ol>
+
+            {/* モバイル：壁〜Phase 4をゴールド枠のグループで囲む（ラベルは枠線と一体化） */}
+            <div className="space-y-2 md:hidden">
+              {CONCEPT_TIMELINE.map((item, i) => {
+                if (item === "wall") return null; // 壁はグループ内の最上部に描画
+                if (item.inScope) {
+                  // 先頭のinScope（Phase 3）の時点でグループを1つだけ描画。Phase 4以降のinScopeはスキップ
+                  if ((CONCEPT_TIMELINE[i - 1] as ConceptPhase | undefined)?.inScope)
+                    return null;
+                  const next = CONCEPT_TIMELINE[i + 1] as ConceptPhase;
+                  return (
+                    <div
+                      key="group"
+                      className="relative rounded-lg border border-gold/70 p-2.5"
+                    >
+                      {/* 枠線と一体化したラベル（独立した横棒にしない） */}
+                      <p className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap bg-accent px-2 text-[10px] font-bold leading-none tracking-wider text-gold">
+                        デンピストAIが担う領域
+                      </p>
+                      {/* 壁（グループ内の最上部） */}
+                      <div
+                        aria-hidden="true"
+                        className="flex items-center gap-2"
+                      >
+                        <div className="h-1 flex-1 bg-gold/70" />
+                        <span className="whitespace-nowrap text-[10px] font-bold tracking-widest text-gold">
+                          心理的ブロックの壁
+                        </span>
+                        <div className="h-1 flex-1 bg-gold/70" />
+                      </div>
+                      {/* 壁の注釈（壁の直下、1行） */}
+                      <p className="mt-1 text-center text-xs text-paper/70">
+                        『自費の提案は押し売りでは』という躊躇が、選択肢の提示を止める
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        <div className="rounded-lg border border-paper/25 p-2.5">
+                          <ConceptPhaseBox phase={item} compact />
+                        </div>
+                        <div className="rounded-lg border border-paper/25 p-2.5">
+                          <ConceptPhaseBox phase={next} compact />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                // Phase 1 / 2 / 5 は個別カード（padding小さめ・内容に沿った高さ）
+                return (
+                  <div
+                    key={item.no}
+                    className={`rounded-lg border p-2.5 ${
+                      item.muted ? "border-paper/15" : "border-paper/25"
+                    }`}
+                  >
+                    <ConceptPhaseBox phase={item} compact />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
