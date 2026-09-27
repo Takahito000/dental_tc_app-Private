@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { isTestStaffName } from "@/lib/testLogs";
 
 export async function POST(req: Request) {
   try {
@@ -211,6 +212,9 @@ export async function POST(req: Request) {
 
     // レポートヘッダー置換用の値を先に確定（衛生士名・発行日）
     const staffName = (body.staffName || body.staff_name || "").toString().trim();
+    // 💡 合言葉（##test##）と完全一致する担当者名の生成はテスト扱いとする:
+    //    本番テーブル（usage_logs / generation_logs）には一切書き込まず test_logs に記録する
+    const isTestGeneration = isTestStaffName(staffName);
     const issueDate = new Date().toLocaleDateString("ja-JP", {
       year: "numeric",
       month: "long",
@@ -247,6 +251,11 @@ export async function POST(req: Request) {
 
       if (!clinicId) {
         console.warn("Supabase Log Skipped: token未送信または未登録のためログを記録しませんでした");
+      } else if (isTestGeneration) {
+        // 💡 テスト生成（合言葉一致）は usage_logs に書き込まない。
+        //    管理ID（patient_anon_id）の連番を消費しないため、ここでは採番自体をスキップする。
+        //    生成内容は後続のブロックで test_logs に記録される。
+        console.log("Supabase Log Skipped (test keyword → test_logs): clinic:", clinicId);
       } else {
         const { data: logData, error: logError } = await supabase
           .from("usage_logs")
@@ -272,11 +281,13 @@ export async function POST(req: Request) {
     // Difyプロンプトが出力する [[STAFF_NAME]] / [[ISSUE_DATE]] / [[PATIENT_ID]] をここで最終差し替えする
     patientSheet = patientSheet.replaceAll("[[ISSUE_DATE]]", issueDate);
 
-    if (staffName) {
+    if (staffName && !isTestGeneration) {
       patientSheet = patientSheet.replaceAll("[[STAFF_NAME]]", staffName);
     } else {
       // 衛生士名が未入力の場合は「担当: 」の部分だけを除去する
       // （発行日・管理IDと同じ行に同居しているため、行ごと削除すると道連れになる）
+      // 💡 テスト生成（合言葉一致）も同経路で「担当: 」ごと除去し、
+      //    患者・家族向け資料に合言葉（##test##）が印字されないようにする
       patientSheet = patientSheet.replace(/担当[:：]\s*\[\[STAFF_NAME\]\][　\s]*/g, "");
     }
 
@@ -290,6 +301,7 @@ export async function POST(req: Request) {
     // ----------------------------------------------------
     // 💡 生成内容の保存（generation_logs）— 遠隔地の医院でも生成物を後から監修・レビューできるようにする
     //    （無償モニター期間の品質検証・判例収集の基盤。失敗しても生成応答自体は必ず返す）
+    //    テスト生成（合言葉一致）の場合は test_logs へ振り分ける（本番の発行ログ・管理ID連番に触れない）
     // ----------------------------------------------------
     try {
       if (clinicId) {
@@ -306,8 +318,10 @@ export async function POST(req: Request) {
           patient_sheet: patientSheet,
           talk_script: talkScript,
         };
+        // 💡 書き込み先の振り分け: テスト生成のみ test_logs（同一カラム構成）
+        const logTable = isTestGeneration ? "test_logs" : "generation_logs";
         const { error: genLogError } = await supabase
-          .from("generation_logs")
+          .from(logTable)
           .insert({
             ...generationLogBase,
             // 💡 変更C：バリデータ検出時は「検出項目・検出文字列」を記録し、運用で頻度監視できるようにする
@@ -318,14 +332,14 @@ export async function POST(req: Request) {
           if (validationResult) {
             // validation_flags カラム未作成等の場合でも、ベース記録だけは残す
             const { error: retryError } = await supabase
-              .from("generation_logs")
+              .from(logTable)
               .insert(generationLogBase);
             if (retryError) {
               console.warn("Generation Log Retry Warning:", retryError.message);
             }
           }
         } else {
-          console.log("Generation Log Created:", patientAnonId, "clinic:", clinicId);
+          console.log("Generation Log Created:", patientAnonId, "clinic:", clinicId, "table:", logTable);
         }
       }
     } catch (genLogErr) {

@@ -281,11 +281,11 @@ const crownPriceText = (p: ResolvedPrice) =>
     ? `${formatYen(p.priceMax)}円（税込）`
     : `${formatYen(p.priceMin)}〜${formatYen(p.priceMax)}円（税込）`;
 
-// 💡 日割り（義歯のみ）: 出所ベースで一本化。デフォルト = midPrice ÷ 1825、医院上書き = priceMax ÷ 1825。
-//    分母 1825（= 5年×365日）はシステム定数のまま医院別にしない。
+// 💡 日割り（義歯のみ）: 出所ベースで一本化。デフォルト = midPrice ÷ 3650、医院上書き = priceMax ÷ 3650。
+//    分母 3650（= 10年×365日）はシステム定数のまま医院別にしない（2026-09-27: 5年→10年に変更）。
 //    端数処理は現行どおり Math.round（円単位四捨五入）を維持する。
 const pricePerDayText = (p: ResolvedPrice) =>
-  `約${Math.round((p.fromClinic ? p.priceMax : p.midPrice) / 1825)}円`;
+  `約${Math.round((p.fromClinic ? p.priceMax : p.midPrice) / 3650)}円`;
 
 // 候補オブジェクト → 素材キーの逆引き（computeDecision 内のオブジェクト参照比較を維持するため）
 const DENTURE_KEY_BY_CANDIDATE = new Map<unknown, string>(
@@ -531,6 +531,234 @@ function resolveDentureTableContent(firstCandidate: string) {
   if (firstCandidate.includes("シリコーン"))
     return DENTURE_COMPARISON_CONTENTS.silicone;
   return DENTURE_COMPARISON_CONTENTS.precision;
+}
+
+// ===== 家族向け3枚目ページ（コード定数のみ。AI生成・Dify変更は一切使わない） =====
+// 💡 設計原則（指示書準拠）: 数値・出所・文章はすべてコード定数。変数は情緒価値の選択表示名・
+//    年代・1ページ目の第一候補提示価格のみ。消費者契約法のセーフライン（主語は統計データ・
+//    個人への断定・威迫は禁止・保険を貶めない）を守るため、文言は指示書の定数を一字一句そのまま使う。
+
+const FAMILY_PAGE_STORAGE_KEY = "include_family_page";
+const FAMILY_PAGE_DEFAULT_AGE = "分からない";
+const FAMILY_PAGE_AGE_OPTIONS = ["60代", "70代", "80歳以上", "分からない"];
+
+const FAMILY_PAGE_COLORS = {
+  main: "#1E4D5C", // メイン（ヘッダー・見出し・強調・健康期間バー）
+  accent: "#B08D4F", // アクセント（大きな数字・介護費用バー）
+  inverted: "#FDFCF9", // 反転文字
+  lightBg: "#FAF7F0", // 薄い背景（右列・フッター・カード）
+};
+
+// ② 寄り添い文（複数選択時は『』連記。3つ以上は先頭2つ＋「など」。未選択はフォールバック文）
+const FAMILY_PAGE_EMPATHY_TEMPLATE =
+  "患者さまは、{VALUES}を大切にしたいとお話しくださいました。\nそのお気持ちを、これから先もずっと叶えていくために、知っておいていただきたいことがあります。";
+const FAMILY_PAGE_EMPATHY_FALLBACK =
+  "患者さまがこれからも心地よく過ごしていくために、知っておいていただきたいことがあります。";
+
+function buildFamilyPageEmpathyText(emotionDrivers: string[]): string {
+  const picked = emotionDrivers.filter((v) =>
+    FORM_DATA.emotion_drivers.includes(v),
+  );
+  if (picked.length === 0) return FAMILY_PAGE_EMPATHY_FALLBACK;
+  const shown = picked
+    .slice(0, 2)
+    .map((v) => `『${v}』`)
+    .join("");
+  const suffix = picked.length >= 3 ? "など" : "";
+  return FAMILY_PAGE_EMPATHY_TEMPLATE.replace("{VALUES}", shown + suffix);
+}
+
+// 💡 差分指示書(2026-09-27) A-1: 「2つの未来」2列対比ブロックは削除済み。
+//    代わりに人生バーの見出し直下に FAMILY_PAGE_LIFE_LEAD の1行を表示する。
+//    情緒価値に応じた行並び替えロジック（familyPageSceneOrder 等）も不要のため削除済み。
+
+// ④ 人生バー（年代 → 代表年齢・残り年数・健康期間・介護期間）
+const FAMILY_PAGE_LIFE_HEADING =
+  "人生100年時代と言われています。残りの年月を、どう過ごしますか？";
+// 💡 差分指示書(2026-09-27) A-1: 「2つの未来」ブロック削除に伴い、見出し直下に追加する1行（コード定数）
+const FAMILY_PAGE_LIFE_LEAD =
+  "「去年食べたあれが、また食べたい」と笑い合える毎日は、噛めることから生まれます。";
+const FAMILY_PAGE_LIFE_NOTE =
+  "約10年とは、お子さまが小学生から大学生になるまでの長さです。（厚生労働省・令和4年）";
+
+const FAMILY_PAGE_AGE_MAP: Record<
+  string,
+  {
+    representativeAge: number;
+    remainingYears: number;
+    healthyYears: number;
+    careYears: number;
+  }
+> = {
+  "60代": { representativeAge: 65, remainingYears: 35, healthyYears: 25, careYears: 10 },
+  "70代": { representativeAge: 75, remainingYears: 25, healthyYears: 15, careYears: 10 },
+  "80歳以上": { representativeAge: 85, remainingYears: 15, healthyYears: 5, careYears: 10 },
+  "分からない": { representativeAge: 75, remainingYears: 25, healthyYears: 15, careYears: 10 },
+};
+
+const resolveFamilyAgeInfo = (age: string) =>
+  FAMILY_PAGE_AGE_MAP[age] || FAMILY_PAGE_AGE_MAP["分からない"];
+
+// ⑤ リスクカードグリッド（2026-09-27: 「約2.4倍」帯バーを3列×2行グリッドに置き換え）
+const FAMILY_PAGE_RISK_GRID_HEADING =
+  "噛めない状態が続くと、こんなリスクとつながります";
+const FAMILY_PAGE_RISK_CARDS: { title: string; desc: string }[] = [
+  {
+    title: "介護 約2.4倍",
+    desc: "お口の機能が低下した方が、新たに介護が必要になるリスク（東京大学・柏スタディ）",
+  },
+  {
+    title: "認知症 約1.9倍",
+    desc: "歯を失い義歯を使っていない方の認知症発症リスク（厚生労働省研究班・JAGES）",
+  },
+  {
+    title: "体力の衰え",
+    desc: "噛む力の低下は、全身の衰え（フレイル）と関連すると報告されています",
+  },
+  {
+    title: "栄養の偏り",
+    desc: "噛めないと軟らかいものに偏り、栄養バランスが崩れやすくなります",
+  },
+  {
+    title: "孤立",
+    desc: "口元を気にして外出が減り、人とのつながりが細くなりがちです",
+  },
+  {
+    title: "会話の減少",
+    desc: "聞き返されることが増え、話すこと自体を避けるようになりがちです",
+  },
+];
+
+// ⑥ 費用対比（介護費用総額はコード定数。治療費は1ページ目の第一候補提示価格をそのまま引用）
+const FAMILY_PAGE_COST_HEADING = "『治療の費用』と『介護の費用』の比較";
+const FAMILY_PAGE_COST_TREATMENT_LABEL = "今回ご提案している治療（片顎の目安）";
+const FAMILY_PAGE_COST_CARE_LABEL =
+  "介護にかかる費用の平均総額（月約9万円 × 平均4年7ヶ月 ＋ 一時費用）";
+const FAMILY_PAGE_COST_CARE_TOTAL = "約542万円";
+const FAMILY_PAGE_COST_CARE_TOTAL_VALUE = 5420000;
+const FAMILY_PAGE_COST_NOTE =
+  "※換算は10年使用を仮定した目安です。調整・修理費は別途かかります。";
+
+// 💡 提示額バーの幅（%）。542万円＝全幅（100%）に対し提示額の幅を実比例で計算。
+//    レンジの場合は上限値でバーを描画するため priceMax を渡す。
+function familyPageTreatmentBarWidth(treatmentCost: number): number {
+  if (!(treatmentCost > 0)) return 0;
+  return Math.min(100, (treatmentCost / FAMILY_PAGE_COST_CARE_TOTAL_VALUE) * 100);
+}
+
+// 💡 差分指示書(2026-09-27) C-1: 1日/月換算ミニカードの比喩テーブル（閾値はコード定数）
+const FAMILY_PAGE_DAILY_METAPHORS: { under: number; text: string; icon: string }[] = [
+  { under: 60, text: "ちょっとしたお菓子1個にも満たない金額", icon: "/images/fr-candy.png" },
+  { under: 150, text: "ジュース1本程度", icon: "/images/fr-juice.png" },
+  { under: 400, text: "コーヒー1杯程度", icon: "/images/fr-coffee.png" },
+  { under: Infinity, text: "ランチ1食にも満たない金額", icon: "/images/fr-launch.png" },
+];
+const FAMILY_PAGE_MONTHLY_METAPHORS: { under: number; text: string; icon: string }[] = [
+  { under: 3000, text: "月のお薬代より少ない金額", icon: "/images/fr-medicine.png" },
+  { under: 15000, text: "月のお薬代程度", icon: "/images/fr-medicine.png" },
+  { under: Infinity, text: "毎月のお薬代に少し足した程度", icon: "/images/fr-medicine.png" },
+];
+
+// 💡 金額が該当する帯域の比喩を返す（under 未満で先頭から照合）
+function familyPageMetaphorFor(
+  amount: number,
+  table: { under: number; text: string; icon: string }[],
+) {
+  return table.find((t) => amount < t.under) || table[table.length - 1];
+}
+
+// 💡 1日/月換算ミニカード直下の注記（差分指示書 C-1・コード定数）
+const FAMILY_PAGE_COST_MINI_NOTE =
+  "介護が1年早く始まれば、費用は約108万円増えます。（生命保険文化センター・2024年度）";
+
+// ⑦ 「保険でいいのでは」への反証ブロック（差分指示書(2026-09-27) B-1 で全文差し替え済み・一字一句変更禁止）
+const FAMILY_PAGE_INSURANCE_TITLE = "「保険の入れ歯では、だめなのでしょうか」";
+const FAMILY_PAGE_INSURANCE_BODY = [
+  "保険の入れ歯は、基本的な機能を回復するものとして、それ自体は正しい選択肢です。\nただし保険の範囲でできるのは、必要最低限の機能回復までです。",
+  "今よりも快適な毎日のための選択肢として、自費の入れ歯について、一度ご家族でお話し合いいただければ幸いです。",
+];
+
+// ⑧ フッター
+const FAMILY_PAGE_FOOTER_QUESTION =
+  "これからの年月を、『食べて、笑って、話して』過ごすか。それとも、できないことが増えるのを待つか。\nその分岐点は、いまの選択にあります。";
+const FAMILY_PAGE_FOOTER_GUIDE =
+  "ご家族の皆さま同席でのご相談も承ります。まずは選択肢を知るところから、ご一緒に考えましょう。";
+// 💡 出所欄は厚生労働省・柏スタディ・JAGES・生命保険文化センター（JAGESはリスクチップ「認知症」等の根拠のため2026-09-27に復元）
+const FAMILY_PAGE_FOOTER_SOURCES =
+  "出所： 厚生労働省『健康寿命の令和4年値』／東京大学高齢社会総合研究機構・柏スタディ（2,011名追跡、J Gerontol A 2018）／厚生労働科学研究班・JAGES（65歳以上4,425名・4年追跡）／生命保険文化センター『生命保険に関する全国実態調査』2024年度";
+const FAMILY_PAGE_FOOTER_DISCLAIMER =
+  "※本資料は一般的な調査データに基づく情報提供です。治療の最終的な方針は、歯科医師とのご相談のうえでお決めください。";
+
+// 💡 トークカンペ最終ステップへ追加する案内文（コード定数。cautious モードでは追加しない）
+const FAMILY_PAGE_TALK_LINE =
+  "3ページ目はご家族向けの資料です。よろしければ、ご家族と一緒にご覧ください。";
+
+function applyFamilyPageTalkLine(
+  steps: TalkKeywordStep[],
+  appMode: string,
+  sheetMode: string,
+): void {
+  // cautious は指示書明記の除外。insurance_first は3枚目自体を生成しないため、
+  // 存在しない3ページ目への言及が残らないよう同じく除外する。
+  if (
+    appMode !== "denture" ||
+    sheetMode === "cautious" ||
+    sheetMode === "insurance_first" ||
+    steps.length === 0
+  )
+    return;
+  const last = steps[steps.length - 1];
+  last.fullText = last.fullText
+    ? `${last.fullText}\n${FAMILY_PAGE_TALK_LINE}`
+    : FAMILY_PAGE_TALK_LINE;
+}
+
+// 1.1 トグル表示条件（careful・未使用者モードではトグル自体を非表示。非活性ではない）
+function shouldShowFamilyPageToggle(sheetMode: string): boolean {
+  return sheetMode !== "cautious" && sheetMode !== "insurance_first";
+}
+
+// 1.1 トグルの localStorage 保存／復元（担当者名と同じ仕組み。デフォルトON・年代は復元しない）
+const loadFamilyPageToggle = (): boolean => {
+  try {
+    return localStorage.getItem(FAMILY_PAGE_STORAGE_KEY) !== "0";
+  } catch {
+    return true;
+  }
+};
+const saveFamilyPageToggle = (value: boolean) => {
+  try {
+    localStorage.setItem(FAMILY_PAGE_STORAGE_KEY, value ? "1" : "0");
+  } catch {}
+};
+
+// 2. 3枚目レンダリング失敗時の隔離（1〜2枚目は維持し「ご家族向けページの生成に失敗しました」のみ表示）
+const FAMILY_PAGE_ERROR_MESSAGE = "ご家族向けページの生成に失敗しました";
+const familyPageErrorResetState = () => ({ hasError: true });
+
+class FamilyPageErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return familyPageErrorResetState();
+  }
+  componentDidCatch(error: unknown) {
+    console.error("[FamilyPageSheet] render error:", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="no-print w-full max-w-[794px] mx-auto p-6 bg-rose-50 border border-rose-200 rounded-lg text-center">
+          <p className="text-sm font-bold text-rose-700">
+            {FAMILY_PAGE_ERROR_MESSAGE}
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 type Decision = {
@@ -800,6 +1028,9 @@ function parseTalkKeywords(
       steps[0].kokorogamae = TALK_MINDSET_LINE.replace(/^【心構え】/, "");
     }
   }
+
+  // 💡 家族向け3ページ目の案内文（コード定数で最終ステップの全文へ追加。cautious では追加しない）
+  applyFamilyPageTalkLine(steps, appMode, sheetMode);
 
   return { preamble: preambleLines.join("\n").trim(), steps };
 }
@@ -1339,6 +1570,11 @@ function DentureForm({
   formData,
   handleSelect,
   handleMultiSelect,
+  showFamilyToggle,
+  includeFamilyPage,
+  onToggleFamilyPage,
+  familyPageAge,
+  onSelectFamilyPageAge,
 }: {
   formData: FormState;
   handleSelect: (key: string, value: string) => void;
@@ -1346,6 +1582,11 @@ function DentureForm({
     key: "current_denture_complaints" | "emotion_drivers" | "red_flag_words",
     value: string,
   ) => void;
+  showFamilyToggle: boolean;
+  includeFamilyPage: boolean;
+  onToggleFamilyPage: (value: boolean) => void;
+  familyPageAge: string;
+  onSelectFamilyPageAge: (value: string) => void;
 }) {
   return (
     <div className="text-xs">
@@ -1687,6 +1928,59 @@ function DentureForm({
           className="w-full p-2.5 border border-line rounded-lg bg-white text-base shadow-xs focus:border-accent focus:outline-none transition"
         />
       </div>
+
+      {/* 15. ご家族向けページ（3枚目。careful・未使用者モードではトグル自体を非表示） */}
+      {showFamilyToggle && (
+        <div className="py-3.5 border-b border-line">
+          <label className="block font-bold mb-1.5 text-ink text-sm tracking-wide">
+            <span className="font-serif-jp text-gold mr-1.5">15</span>
+            ご家族向けページを追加する
+          </label>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => onToggleFamilyPage(true)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                includeFamilyPage
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              追加する
+            </button>
+            <button
+              type="button"
+              onClick={() => onToggleFamilyPage(false)}
+              className={`flex-1 py-2.5 px-2 min-h-[44px] rounded-lg border font-medium transition text-center ${
+                !includeFamilyPage
+                  ? "bg-accent-tint text-accent border-accent font-bold"
+                  : "bg-white text-ink border-line hover:border-accent"
+              }`}
+            >
+              追加しない
+            </button>
+          </div>
+          {/* 患者さまの年代（トグルON時のみ表示。省略可・デフォルト「分からない」。localStorage復元なし） */}
+          {includeFamilyPage && (
+            <div className="mt-3">
+              <label className="block font-bold mb-1.5 text-ink text-xs tracking-wide">
+                患者さまの年代（家族向けページに反映）
+              </label>
+              <select
+                value={familyPageAge}
+                onChange={(e) => onSelectFamilyPageAge(e.target.value)}
+                className="w-full p-2.5 border rounded-lg bg-white border-line text-base shadow-xs focus:border-accent focus:outline-none transition"
+              >
+                {FAMILY_PAGE_AGE_OPTIONS.map((age) => (
+                  <option key={age} value={age}>
+                    {age}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1902,6 +2196,10 @@ export default function Page() {
   // 💡 セミナーデモ用トークンかどうか（true の間はメール送信を無効化する）
   const [isDemo, setIsDemo] = useState(false);
   const [staffName, setStaffName] = useState("");
+  // 💡 家族向け3ページ目（義歯版のみ）。トグルのみ localStorage に前回値を保存（デフォルトON）
+  const [includeFamilyPage, setIncludeFamilyPage] = useState(true);
+  // 💡 患者さまの年代（家族向けページの人生バーに反映。省略可・デフォルト「分からない」。localStorage復元はしない）
+  const [familyPageAge, setFamilyPageAge] = useState(FAMILY_PAGE_DEFAULT_AGE);
   const [isStandalone, setIsStandalone] = useState(true); // PWA判定（初期true=バナー非表示。マウント後に実判定）
 
   const [formData, setFormData] = useState<FormState>(INITIAL_FORM_DATA);
@@ -2025,6 +2323,9 @@ export default function Page() {
     const savedStaff = localStorage.getItem("staff_name") || "";
     setStaffName(savedStaff);
 
+    // 2b. ご家族向けページ追加トグル（デフォルトON。前回値がOFFなら復元。年代は患者ごとに変わるため復元しない）
+    setIncludeFamilyPage(loadFamilyPageToggle());
+
     // 3. PWA（ホーム画面追加済み）かどうかを判定。未追加なら案内バナーを出す
     setIsStandalone(
       window.matchMedia("(display-mode: standalone)").matches ||
@@ -2142,6 +2443,12 @@ export default function Page() {
     });
   };
 
+  // 💡 ご家族向けページ追加トグル（選択状態を localStorage に保存し前回値を復元。担当者名と同じ仕組み）
+  const handleToggleFamilyPage = (value: boolean) => {
+    setIncludeFamilyPage(value);
+    saveFamilyPageToggle(value);
+  };
+
   const handleGenerate = async () => {
     // 💡 未登録トークン・医院未設定では生成を実行しない（ボタン非活性の保険として二重防御）
     if (!(token && clinicName)) {
@@ -2163,6 +2470,12 @@ export default function Page() {
       formData.mode === "crown"
         ? computeCrownDecision(formData as CrownFormState, clinicPrices)
         : computeDecision(formData, clinicPrices);
+
+    // 💡 家族向け3ページ目の要否（義歯版・通常モード・トグルON。careful・未使用者では非表示）
+    const familyPageRequested =
+      formData.mode === "denture" &&
+      includeFamilyPage &&
+      shouldShowFamilyPageToggle((decision as Decision).sheetMode);
 
     const basePayload = {
       mode: formData.mode,
@@ -2205,6 +2518,8 @@ export default function Page() {
             cost_sensitivity: formData.cost_sensitivity,
             red_flag_words: formData.red_flag_words.join(", "),
             price_per_day: (decision as Decision).pricePerDay,
+            include_family_page: familyPageRequested ? "追加する" : "追加しない",
+            family_page_age: familyPageAge,
           };
 
     const controller = new AbortController();
@@ -2498,6 +2813,17 @@ export default function Page() {
       ? computeCrownDecision(formData as CrownFormState, clinicPrices)
       : computeDecision(formData, clinicPrices);
 
+  // 💡 家族向け3ページ目（義歯版のみ）：careful・未使用者モードではトグル自体を非表示。
+  //    3枚目は通常モード・トグルON・第一候補ありのときだけ描画（PaginatedSheet の外の独立ページとして
+  //    DOM 末尾に並べるため、既存の PDF キャプチャ（.sheet-page-portrait 列挙）に自動で含まれる）
+  const showFamilyPageToggle =
+    formData.mode === "denture" &&
+    shouldShowFamilyPageToggle((decision as Decision).sheetMode);
+  const familyPageVisible =
+    showFamilyPageToggle &&
+    includeFamilyPage &&
+    Boolean((decision as Decision).firstCandidate);
+
   // 💡 カンペが新フォーマット（【キーワード】併記）かどうか。旧形式の生成結果では切替ボタン自体を出さない
   const talkKeywordAvailable = result
     ? result.talkScript.includes("【キーワード】")
@@ -2532,12 +2858,18 @@ export default function Page() {
   const A4PageWrapper = ({
     children,
     isLast,
+    wrapperClassName,
+    noAutoZoom,
   }: {
     children: React.ReactNode;
     isLast?: boolean;
+    wrapperClassName?: string;
+    // 💡 内容が確実にA4に収まるページ（家族向け3枚目）では自動縮小を使わない。
+    //    余白は flex の space-between で各セクション間に分散させ、下端に塊が残らないようにする。
+    noAutoZoom?: boolean;
   }) => (
     <div
-      className="print-wrapper"
+      className={`print-wrapper${wrapperClassName ? ` ${wrapperClassName}` : ""}`}
       style={{ width: A4_WIDTH_PX * fitScale, height: A4_HEIGHT_PX * fitScale }}
     >
       <div
@@ -2554,9 +2886,18 @@ export default function Page() {
           overflow: "hidden",
         }}
       >
-        <PageContentFitter>
-          {children}
-        </PageContentFitter>
+        {noAutoZoom ? (
+          <div
+            data-page-content-fitter
+            style={{ display: "flex", flexDirection: "column", height: "100%" }}
+          >
+            {children}
+          </div>
+        ) : (
+          <PageContentFitter>
+            {children}
+          </PageContentFitter>
+        )}
       </div>
     </div>
   );
@@ -3472,6 +3813,515 @@ export default function Page() {
     );
   };
 
+  // ===== 義歯版 3枚目「ご家族向けページ」A4コンポーネント =====
+  // 全セクションはコード定数（①〜⑧）。変数は情緒価値の選択表示名（②・③）・年代（④）・
+  // 1ページ目の第一候補提示価格（⑥の上段バー）のみ。レンダリング失敗時は ErrorBoundary が
+  // 1〜2枚目を維持したまま「ご家族向けページの生成に失敗しました」のみ表示する。
+  const FamilyPageSheet = () => {
+    const d = decision as Decision;
+    const empathyText = buildFamilyPageEmpathyText(formData.emotion_drivers);
+    // 💡 寄り添い文の情緒価値（『…』部分）のみ太字で強調
+    const empathyParts = empathyText.split(/(『[^』]*』)/g);
+    const ageInfo = resolveFamilyAgeInfo(familyPageAge);
+    const materialKey = resolveDentureMaterialKey(d.firstCandidate);
+    // 💡 1ページ目に表示した第一候補の提示価格をそのまま引用（医院登録価格があればそれ。レンジは上限値でバー描画）
+    const familyPrice = resolveDenturePrice(materialKey, clinicPrices);
+    const treatmentLabel = dentureTableCostText(familyPrice, materialKey);
+    // 💡 基準価格は1〜2枚目と同じルール: デフォルト（相場レンジ）=中央値・医院登録価格=上限値
+    const basePrice = familyPrice.fromClinic ? familyPrice.priceMax : familyPrice.midPrice;
+    const treatmentWidth = familyPageTreatmentBarWidth(basePrice);
+    const healthyPct = (ageInfo.healthyYears / ageInfo.remainingYears) * 100;
+    const carePct = (ageInfo.careYears / ageInfo.remainingYears) * 100;
+    // 💡 1日/月換算ミニカード（基準価格は費用対比バーと同じく上記ルールの basePrice を流用）
+    const miniPrice = basePrice;
+    const miniHeading = `今回の治療費（${formatYen(miniPrice)}円で試算）を10年で使うと…`;
+    const dailyAmount = Math.round(miniPrice / 3650);
+    const monthlyAmount = Math.round(miniPrice / 120);
+    const dailyMeta = familyPageMetaphorFor(dailyAmount, FAMILY_PAGE_DAILY_METAPHORS);
+    const monthlyMeta = familyPageMetaphorFor(monthlyAmount, FAMILY_PAGE_MONTHLY_METAPHORS);
+
+    const sectionTitle: React.CSSProperties = {
+      fontSize: 15,
+      fontWeight: 700,
+      lineHeight: 1.2,
+      color: FAMILY_PAGE_COLORS.main,
+      letterSpacing: "0.02em",
+    };
+    const noteStyle: React.CSSProperties = {
+      fontSize: 10.5,
+      color: "#6B7280",
+      lineHeight: 1.5,
+    };
+
+    return (
+      <A4PageWrapper isLast wrapperClassName="family-page-last" noAutoZoom>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+            flex: "1 0 auto",
+          }}
+        >
+          {/* ① ヘッダーバンド（#1E4D5C・文字#FDFCF9） */}
+          <div
+            style={{
+              backgroundColor: FAMILY_PAGE_COLORS.main,
+              color: FAMILY_PAGE_COLORS.inverted,
+              margin: "-12mm -12mm 0",
+              padding: "5.5mm 12mm 4.5mm",
+            }}
+          >
+            <p
+              style={{
+                fontSize: 10,
+                lineHeight: 1.3,
+                letterSpacing: "0.12em",
+                opacity: 0.9,
+              }}
+            >
+              このページは、ご本人とご家族で一緒にお読みください
+            </p>
+            <h1
+              className="font-serif-jp"
+              style={{ fontSize: 19, fontWeight: 800, marginTop: 6, lineHeight: 1.3 }}
+            >
+              ご家族の皆さまへ ― 『噛めること』は、人生の質そのものです
+            </h1>
+            <p style={{ fontSize: 10, lineHeight: 1.55, marginTop: 6, opacity: 0.95 }}>
+              噛めるかどうかの違いは、お口の中だけの問題ではありません。これからの10年・20年を『自立して笑顔で過ごせるか』を分ける、分岐点のお話です。
+            </p>
+          </div>
+
+          {/* ② 寄り添い文（#FAF7F0の帯・ヘッダー直下。「お話しくださいました。」で改行） */}
+          <div
+            style={{
+              backgroundColor: FAMILY_PAGE_COLORS.lightBg,
+              padding: "9px 12px",
+              marginTop: 8,
+              fontSize: 14,
+              lineHeight: 1.6,
+              color: "#374151",
+              whiteSpace: "pre-line",
+            }}
+          >
+            {empathyParts.map((part, i) =>
+              /^『[^』]*』$/.test(part) ? (
+                <strong key={i} style={{ fontWeight: 800, color: "#1F2937" }}>
+                  {part}
+                </strong>
+              ) : (
+                part
+              ),
+            )}
+          </div>
+
+          {/* ④ 人生バー（実比例：健康期間#1E4D5C・介護期間#B08D4F） */}
+          <div style={{ marginTop: 17 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  width: 4,
+                  alignSelf: "stretch",
+                  backgroundColor: FAMILY_PAGE_COLORS.accent,
+                  borderRadius: 2,
+                }}
+              />
+              <h2 style={sectionTitle}>{FAMILY_PAGE_LIFE_HEADING}</h2>
+            </div>
+            {/* 差分指示書(2026-09-27) A-1: 「2つの未来」ブロックに代わる導入文1行 */}
+            <p
+              style={{
+                fontSize: 12,
+                color: "#4B5563",
+                marginTop: 3,
+                lineHeight: 1.5,
+              }}
+            >
+              {FAMILY_PAGE_LIFE_LEAD}
+            </p>
+            <p
+              style={{
+                fontSize: 11,
+                color: "#4B5563",
+                marginTop: 3,
+                lineHeight: 1.35,
+              }}
+            >
+              仮に{ageInfo.representativeAge}歳の場合
+            </p>
+            <div
+              style={{
+                display: "flex",
+                height: 22,
+                borderRadius: 3,
+                overflow: "hidden",
+                marginTop: 6,
+              }}
+            >
+              <div
+                style={{
+                  width: `${healthyPct}%`,
+                  backgroundColor: FAMILY_PAGE_COLORS.main,
+                  color: FAMILY_PAGE_COLORS.inverted,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                健康期間 約{ageInfo.healthyYears}年
+              </div>
+              <div
+                style={{
+                  width: `${carePct}%`,
+                  backgroundColor: FAMILY_PAGE_COLORS.accent,
+                  color: FAMILY_PAGE_COLORS.inverted,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                介護期間 約{ageInfo.careYears}年
+              </div>
+            </div>
+            <p style={{ ...noteStyle, marginTop: 4 }}>{FAMILY_PAGE_LIFE_NOTE}</p>
+          </div>
+
+          {/* ⑤ リスクカードグリッド（3列×2行。タイトル#B08D4F太字・説明#1E4D5C・背景#FAF7F0・中央揃え） */}
+          <div style={{ marginTop: 17 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  width: 4,
+                  alignSelf: "stretch",
+                  backgroundColor: FAMILY_PAGE_COLORS.accent,
+                  borderRadius: 2,
+                }}
+              />
+              <h2 style={sectionTitle}>{FAMILY_PAGE_RISK_GRID_HEADING}</h2>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: 16,
+                marginTop: 7,
+              }}
+            >
+              {FAMILY_PAGE_RISK_CARDS.map((card) => (
+                <div
+                  key={card.title}
+                  style={{
+                    backgroundColor: "#FAF7F0",
+                    borderRadius: 4,
+                    padding: "7px 10px",
+                    textAlign: "center",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 800,
+                      lineHeight: 1.2,
+                      color: FAMILY_PAGE_COLORS.accent,
+                    }}
+                  >
+                    {card.title}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 11,
+                      lineHeight: 1.5,
+                      color: FAMILY_PAGE_COLORS.main,
+                      marginTop: 3,
+                    }}
+                  >
+                    {card.desc}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ⑥ 費用対比（実比例バー。上段=第一候補提示価格・下段=介護費用約542万円が全幅） */}
+          <div style={{ marginTop: 17 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  width: 4,
+                  alignSelf: "stretch",
+                  backgroundColor: FAMILY_PAGE_COLORS.accent,
+                  borderRadius: 2,
+                }}
+              />
+              <h2 style={sectionTitle}>{FAMILY_PAGE_COST_HEADING}</h2>
+            </div>
+            <div style={{ marginTop: 7 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  fontSize: 13,
+                  lineHeight: 1.3,
+                  color: "#374151",
+                }}
+              >
+                <span style={{ fontWeight: 700 }}>
+                  {FAMILY_PAGE_COST_TREATMENT_LABEL}
+                </span>
+                <span style={{ fontWeight: 700 }}>{treatmentLabel}</span>
+              </div>
+              <div
+                style={{
+                  height: 14,
+                  backgroundColor: "#ECEFF1",
+                  borderRadius: 3,
+                  marginTop: 2,
+                }}
+              >
+                <div
+                  style={{
+                    width: `${treatmentWidth}%`,
+                    height: "100%",
+                    backgroundColor: FAMILY_PAGE_COLORS.main,
+                    borderRadius: 3,
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  fontSize: 13,
+                  lineHeight: 1.3,
+                  color: "#374151",
+                  marginTop: 7,
+                }}
+              >
+                <span style={{ fontWeight: 700 }}>
+                  {FAMILY_PAGE_COST_CARE_LABEL}
+                </span>
+                <span style={{ fontWeight: 700, color: FAMILY_PAGE_COLORS.accent }}>
+                  {FAMILY_PAGE_COST_CARE_TOTAL}
+                </span>
+              </div>
+              <div
+                style={{
+                  height: 14,
+                  backgroundColor: "#ECEFF1",
+                  borderRadius: 3,
+                  marginTop: 2,
+                }}
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: FAMILY_PAGE_COLORS.accent,
+                    borderRadius: 3,
+                  }}
+                />
+              </div>
+              {/* 差分指示書(2026-09-27) 修正2: 1日/月換算ミニカード（左右2分割＋見出し。見出し上部の余白は費用対比バーとの境界用） */}
+              <p
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: FAMILY_PAGE_COLORS.main,
+                  marginTop: 17,
+                }}
+              >
+                {miniHeading}
+              </p>
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    backgroundColor: FAMILY_PAGE_COLORS.lightBg,
+                    borderRadius: 4,
+                    padding: "11px 11px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ flex: 1, textAlign: "center" }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "#4B5563" }}>
+                      1日あたり
+                    </p>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 800,
+                        color: FAMILY_PAGE_COLORS.main,
+                        marginTop: 4,
+                      }}
+                    >
+                      約{formatYen(dailyAmount)}円
+                    </p>
+                  </div>
+                  <div style={{ flex: 1, textAlign: "center" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={dailyMeta.icon}
+                      alt=""
+                      style={{
+                        width: 36,
+                        height: 36,
+                        objectFit: "contain",
+                        display: "block",
+                        margin: "0 auto",
+                      }}
+                    />
+                    <p style={{ ...noteStyle, marginTop: 2 }}>{dailyMeta.text}</p>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    flex: 1,
+                    backgroundColor: FAMILY_PAGE_COLORS.lightBg,
+                    borderRadius: 4,
+                    padding: "11px 11px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ flex: 1, textAlign: "center" }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "#4B5563" }}>
+                      月あたり
+                    </p>
+                    <p
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 800,
+                        color: FAMILY_PAGE_COLORS.main,
+                        marginTop: 4,
+                      }}
+                    >
+                      約{formatYen(monthlyAmount)}円
+                    </p>
+                  </div>
+                  <div style={{ flex: 1, textAlign: "center" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={monthlyMeta.icon}
+                      alt=""
+                      style={{
+                        width: 36,
+                        height: 36,
+                        objectFit: "contain",
+                        display: "block",
+                        margin: "0 auto",
+                      }}
+                    />
+                    <p style={{ ...noteStyle, marginTop: 2 }}>{monthlyMeta.text}</p>
+                  </div>
+                </div>
+              </div>
+              <p style={{ ...noteStyle, fontSize: 12, marginTop: 3 }}>
+                {FAMILY_PAGE_COST_MINI_NOTE}
+              </p>
+              <p style={{ ...noteStyle, fontSize: 12, marginTop: 4 }}>{FAMILY_PAGE_COST_NOTE}</p>
+            </div>
+          </div>
+
+          {/* ⑦ 「保険でいいのでは」への反証ブロック（⑥の直下。フッターとの間に余白を確保） */}
+          <div
+            style={{
+              marginTop: 17,
+              marginBottom: 14,
+              borderLeft: `3px solid ${FAMILY_PAGE_COLORS.accent}`,
+              backgroundColor: FAMILY_PAGE_COLORS.lightBg,
+              padding: "9px 12px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  width: 4,
+                  alignSelf: "stretch",
+                  backgroundColor: FAMILY_PAGE_COLORS.accent,
+                  borderRadius: 2,
+                }}
+              />
+              <p
+                style={{
+                  fontSize: 15,
+                  fontWeight: 800,
+                  lineHeight: 1.2,
+                  color: FAMILY_PAGE_COLORS.main,
+                }}
+              >
+                {FAMILY_PAGE_INSURANCE_TITLE}
+              </p>
+            </div>
+            {FAMILY_PAGE_INSURANCE_BODY.map((text, i) => (
+              <p
+                key={i}
+                style={{
+                  fontSize: 12,
+                  color: "#374151",
+                  lineHeight: 1.6,
+                  marginTop: 3,
+                  whiteSpace: "pre-line",
+                }}
+              >
+                {text}
+              </p>
+            ))}
+          </div>
+        </div>
+
+        {/* ⑧ フッター（#FAF7F0帯） */}
+        <div
+          style={{
+            margin: "12px -12mm -12mm",
+            marginTop: "auto",
+            backgroundColor: FAMILY_PAGE_COLORS.lightBg,
+            padding: "4mm 12mm 3.5mm",
+          }}
+        >
+          <p
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: FAMILY_PAGE_COLORS.main,
+              lineHeight: 1.55,
+              whiteSpace: "pre-line",
+            }}
+          >
+            {FAMILY_PAGE_FOOTER_QUESTION}
+          </p>
+          <p
+            style={{
+              fontSize: 9.5,
+              color: "#374151",
+              lineHeight: 1.55,
+              marginTop: 4,
+            }}
+          >
+            {FAMILY_PAGE_FOOTER_GUIDE}
+          </p>
+          <p style={{ ...noteStyle, fontSize: 8.5, marginTop: 4 }}>
+            {FAMILY_PAGE_FOOTER_SOURCES}
+          </p>
+          <p style={{ ...noteStyle, fontSize: 8.5, marginTop: 2 }}>
+            {FAMILY_PAGE_FOOTER_DISCLAIMER}
+          </p>
+        </div>
+      </A4PageWrapper>
+    );
+  };
+
   return (
     <main className="min-h-screen bg-bg font-sans text-ink">
       <style
@@ -3545,6 +4395,12 @@ export default function Page() {
 
           .print-wrapper:last-child .sheet-page-portrait,
           .sheet-page-portrait:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
+          }
+
+          /* 💡 3枚目「ご家族向けページ」が続く場合、2枚目の直後に空白ページが挟まらないよう最終ページを明示する */
+          .print-wrapper.family-page-last .sheet-page-portrait {
             page-break-after: auto !important;
             break-after: auto !important;
           }
@@ -3668,6 +4524,11 @@ export default function Page() {
               formData={formData}
               handleSelect={handleSelect}
               handleMultiSelect={handleMultiSelect}
+              showFamilyToggle={showFamilyPageToggle}
+              includeFamilyPage={includeFamilyPage}
+              onToggleFamilyPage={handleToggleFamilyPage}
+              familyPageAge={familyPageAge}
+              onSelectFamilyPageAge={setFamilyPageAge}
             />
           ) : (
             <CrownForm
@@ -3849,7 +4710,18 @@ export default function Page() {
               >
                 {activeTab === "patient" &&
                   (formData.mode === "denture" ? (
-                    <DenturePatientSheet />
+                    <>
+                      <DenturePatientSheet />
+                      {/* 💡 3枚目「ご家族向けページ」：通常モード・トグルON・第一候補ありのときだけ描画。
+                          PaginatedSheet の外の独立ページ（.sheet-page-portrait）として並べるため、
+                          既存の PDF キャプチャに3枚目として自動で含まれる。エラー時は ErrorBoundary が
+                          1〜2枚目を維持して「ご家族向けページの生成に失敗しました」のみ表示する */}
+                      {familyPageVisible && (
+                        <FamilyPageErrorBoundary>
+                          <FamilyPageSheet />
+                        </FamilyPageErrorBoundary>
+                      )}
+                    </>
                   ) : (
                     <CrownPatientSheet />
                   ))}

@@ -33,16 +33,20 @@ const extractFunction = (name) => {
     .replace(/:\s*(string|number|boolean)(\[\])?/g, "")
     .replace(/:\s*TalkKeywordStep\s*\|\s*null/g, "")
     .replace(/:\s*TalkKeywordStep(\[\])?/g, "")
+    .replace(/:\s*void\b/g, "")
     .replace(/\)\s*:\s*\{[^}]*\}\s*\|\s*null/g, ")");
   return eval(`(${code})`);
 };
 
 const TALK_MINDSET_LINE = extractConst("TALK_MINDSET_LINE");
 const TALK_MINDSET_LINE_CROWN = extractConst("TALK_MINDSET_LINE_CROWN");
+// 💡 家族向け3ページ目の案内文定数（parseTalkKeywords 内で参照されるため同一スコープに必要）
+const FAMILY_PAGE_TALK_LINE = extractConst("FAMILY_PAGE_TALK_LINE");
 const SHEET_OPENER = extractConst("SHEET_OPENER");
 const SHEET_FIXED_HEADINGS = extractConst("SHEET_FIXED_HEADINGS");
 const applySheetOpener = extractFunction("applySheetOpener");
 const resolveSheetHeadings = extractFunction("resolveSheetHeadings");
+const applyFamilyPageTalkLine = extractFunction("applyFamilyPageTalkLine");
 const parseTalkKeywords = extractFunction("parseTalkKeywords");
 
 // parsePatientSheet も実ファイルから抽出（内部の自由変数は呼出時に注入）
