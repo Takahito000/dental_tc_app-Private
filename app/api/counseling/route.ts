@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { isTestStaffName } from "@/lib/testLogs";
+import { normalizeFamilyPageInputs } from "@/lib/familyPageLog";
 
 export async function POST(req: Request) {
   try {
@@ -307,7 +308,12 @@ export async function POST(req: Request) {
       if (clinicId) {
         const supabase = getSupabaseAdmin();
         // トークンはログに残さない（認証情報の保存を避ける）
-        const logInputs = { ...body };
+        // 💡 家族向けページ情報（family_page / patient_age_group）を正規化して inputs に併記。
+        //    generationLogBase が generation_logs / test_logs どちらにも使われるため両テーブルに記録される。
+        const logInputs = {
+          ...body,
+          ...normalizeFamilyPageInputs(body),
+        };
         delete logInputs.token;
         delete logInputs.access_token;
         const generationLogBase = {

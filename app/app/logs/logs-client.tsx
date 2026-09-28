@@ -57,6 +57,11 @@ const INPUT_LABELS: Record<string, string> = {
   expectation: "患者さまの期待",
   cost_sensitivity: "費用感度",
   red_flag_words: "要注意ワード",
+  // ご家族向けページ（2026-09-28 追加。一覧行にも「家族向け: …」として表示）
+  include_family_page: "家族向けページ",
+  family_page_age: "患者の年代",
+  family_page: "ご家族向けページ",
+  patient_age_group: "患者さまの年代",
 };
 
 // 同じキーで義歯／クラウンで設問ラベルが異なる場合の上書き（クラウン側）
@@ -78,6 +83,44 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
 
 // 展開表示から除外するキー（free_memo=患者を特定し得る自由記述、token=認証情報、note_flags=スタッフ向け内部フラグ）
 const EXCLUDED_INPUT_KEYS = new Set(["free_memo", "token", "access_token", "note_flags"]);
+
+// 展開表示の並びは入力フォーム（/app）の設問番号順に準じる（2026-09-28）。
+// 義歯フォーム 01〜15 → クラウンフォーム 01〜07 → その他のメタ情報。
+// 配列未登録の既知キーは inputs の挿入順のまま末尾側に並ぶ。
+const LOG_DISPLAY_ORDER = [
+  "staffName", // 担当者（フォーム外だが先頭に配置）
+  // 義歯フォーム 01〜15
+  "denture_status",
+  "remaining_teeth",
+  "target_jaw",
+  "defect_site",
+  "denture_duration",
+  "adjustment_history",
+  "oral_dryness",
+  "ridge_mucosa",
+  "expectation_type",
+  "cost_sensitivity",
+  "current_denture_complaints",
+  "emotion_drivers",
+  "red_flag_words",
+  "include_family_page",
+  "family_page_age",
+  "family_page",
+  "patient_age_group",
+  // クラウンフォーム 01〜07
+  "target_site",
+  "visibility",
+  "chief_priority",
+  "metal_allergy",
+  "bruxism",
+  "has_pain",
+  // その他のメタ情報
+  "mode",
+  "sheet_mode",
+  "first_candidate",
+  "candidate_price_range",
+  "price_per_day",
+];
 
 const fmtDateTime = (iso: string) =>
   new Intl.DateTimeFormat("ja-JP", {
@@ -428,11 +471,18 @@ export default function LogsClient() {
   );
 }
 
-// 展開表示用のエントリ（free_memo・token系は除外。項目名の並びは既知ラベル優先）
+// 展開表示用のエントリ（free_memo・token系は除外。項目名の並びは LOG_DISPLAY_ORDER（フォーム設問番号順）→ 未定義キーはアルファベット順）
 function expandEntries(row: LogRow): [string, unknown][] {
   const inputs = row.inputs || {};
   const keys = Object.keys(inputs).filter((k) => !EXCLUDED_INPUT_KEYS.has(k));
-  const known = keys.filter((k) => k in INPUT_LABELS);
+  const orderIndex = (k: string) => {
+    const i = LOG_DISPLAY_ORDER.indexOf(k);
+    return i === -1 ? LOG_DISPLAY_ORDER.length : i;
+  };
+  // sort は安定なので、配列未登録の既知キーは inputs の挿入順のまま後続する
+  const known = keys
+    .filter((k) => k in INPUT_LABELS)
+    .sort((a, b) => orderIndex(a) - orderIndex(b));
   const unknown = keys.filter((k) => !(k in INPUT_LABELS)).sort();
   return [...known, ...unknown].map((k) => [k, inputs[k]]);
 }
