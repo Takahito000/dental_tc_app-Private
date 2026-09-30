@@ -74,3 +74,61 @@
 .font-serif-jp {
   font-family: var(--font-serif-jp), "Hiragino Mincho ProN", "Yu Mincho", serif;
 }
+
+/* ============================================================
+   LP洗練化（2026-09-30）：フェーズ図の壁ハッチ・出現アニメーション
+   ============================================================ */
+/* 「心理的ブロックの壁」ハッチ帯（gold を 15% 透過・8px 間隔の斜めストライプ） */
+.wall-hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(176, 141, 79, 0.15) 0,
+    rgba(176, 141, 79, 0.15) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+/* 出現アニメーション（FadeIn コンポーネントが .is-visible を付与） */
+.fade-in-up {
+  transition: opacity 600ms ease-out, transform 600ms ease-out;
+}
+/* 未表示時のみ transform を適用。表示後は transform:none となり、
+   fixed な子孫（ギャラリーのライトボックス等）の containing block にならない */
+.fade-in-up:not(.is-visible) {
+  opacity: 0;
+  transform: translateY(12px);
+}
+.fade-in-up--section:not(.is-visible) {
+  transform: translateY(16px);
+}
+.fade-in-up.is-visible {
+  opacity: 1;
+}
+
+/* VOICE 全文展開のフェードイン */
+.voice-toggle-expand {
+  animation: voice-fade-in 300ms ease-out both;
+}
+@keyframes voice-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* アクセシビリティ：アニメーション不要なユーザーにはすべて無効化 */
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-up,
+  .fade-in-up:not(.is-visible),
+  .fade-in-up.is-visible {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .voice-toggle-expand {
+    animation: none;
+  }
+}

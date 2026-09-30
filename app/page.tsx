@@ -1,7 +1,9 @@
 import CtaLink from "./cta-link";
+import FadeIn from "./fade-in";
 import ReportGallery from "./report-gallery";
 import Section2Background from "./section2-background";
 import ViewFormTracker from "./view-form-tracker";
+import VoiceToggle from "./voice-toggle";
 
 // 💡 OGP/Twitterカードのメタ情報は app/layout.tsx に集約（og:image は絶対URL指定）。
 //    ページ側で openGraph を上書きすると相対パスが使われてしまうため、ここでは定義しない。
@@ -48,13 +50,13 @@ const CONCEPT_TIMELINE: (ConceptPhase | "wall")[] = [
   {
     no: "Phase 1",
     title: "問診・ヒアリング",
-    note: "ドクター・スタッフの領域（デンピストAIの範囲外）",
+    note: "ドクター・スタッフの領域",
     muted: true,
   },
   {
     no: "Phase 2",
     title: "検査・診断",
-    note: "ドクターの領域（デンピストAIの範囲外）",
+    note: "ドクターの領域",
     muted: true,
   },
   "wall",
@@ -73,7 +75,7 @@ const CONCEPT_TIMELINE: (ConceptPhase | "wall")[] = [
   {
     no: "Phase 5",
     title: "合意・カルテ記録",
-    note: "カルテの仕事（デンピストAIの範囲外）",
+    note: "カルテの仕事",
     muted: true,
   },
 ];
@@ -216,7 +218,7 @@ export default function LandingPage() {
           </a>
           <CtaLink
             location="header"
-            className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-white md:px-5 md:text-sm"
+            className="rounded-full bg-accent px-4 py-2 text-xs font-bold text-white shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:brightness-110 md:px-5 md:text-sm"
           >
             <span className="sm:hidden">無料で試す</span>
             <span className="hidden sm:inline">
@@ -230,7 +232,7 @@ export default function LandingPage() {
       <section id="top" className="bg-paper">
         <div className="mx-auto max-w-5xl px-5 pb-16 pt-12 md:pb-24 md:pt-20">
           <div className="grid items-center gap-10 md:grid-cols-2">
-            <div>
+            <FadeIn variant="hero">
               {/* 💡 モバイルで4行に分裂しないよう、各行をnowrap＋モバイルのみ文字サイズ調整（PCは現行サイズ維持） */}
               <h1 className="font-serif-jp text-[2.5rem] font-bold leading-relaxed md:text-[3.4rem] md:leading-snug">
                 <span className="whitespace-nowrap">治療の選択肢を、</span>
@@ -245,7 +247,7 @@ export default function LandingPage() {
               <div className="mt-8">
                 <CtaLink
                   location="hero"
-                  className="inline-block rounded-full bg-accent px-10 py-5 text-sm font-bold text-white shadow-sm"
+                  className="inline-block rounded-full bg-accent px-10 py-5 text-sm font-bold text-white shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:brightness-110"
                 >
                   無料トライアルに申し込む（4週間・無料）
                 </CtaLink>
@@ -253,15 +255,15 @@ export default function LandingPage() {
                   ※現在、モニター医院さまを募集しています
                 </p>
               </div>
-            </div>
-            <div className="px-2 py-4 md:pl-6">
+            </FadeIn>
+            <FadeIn variant="hero" delay={150} className="px-2 py-4 md:pl-6">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/images/report-sample.jpg"
                 alt="AI客観分析レポートのサンプル"
                 className="w-full rotate-2 rounded-lg border border-line drop-shadow-2xl md:rotate-1"
               />
-            </div>
+            </FadeIn>
           </div>
         </div>
       </section>
@@ -270,9 +272,10 @@ export default function LandingPage() {
       <section className="relative isolate overflow-hidden border-y border-line bg-tint">
         {/* 💡 背景動画＋半透明オーバーレイ（テキストは relative z-10 で最前面） */}
         <Section2Background />
-        <div className="relative z-10 mx-auto max-w-3xl px-5 py-16 md:py-24">
-          {/* 💡 モバイルで4行に分裂しないよう、各行をnowrap＋モバイルのみ文字サイズ調整（PCは現行サイズ維持） */}
-          <h2 className="text-center font-serif-jp text-[1.2rem] font-bold leading-relaxed text-ink md:text-3xl">
+        <FadeIn className="relative z-10">
+          <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
+            {/* 💡 モバイルで4行に分裂しないよう、各行をnowrap＋モバイルのみ文字サイズ調整（PCは現行サイズ維持） */}
+            <h2 className="text-center font-serif-jp text-[1.2rem] font-bold leading-relaxed text-ink md:text-3xl">
             <span className="whitespace-nowrap">「高いものを勧めたい」んじゃない。</span>
             <br />
             <span className="whitespace-nowrap">「選択肢を届けたい」だけなのに。</span>
@@ -317,13 +320,15 @@ export default function LandingPage() {
               保険診療は国が定めた標準的な医療として有効です。問題なのは保険ではなく、「選択肢を知らないまま決めている患者さまと、届け方を知らない医院」という構造です。
             </p>
           </div>
-        </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション3：プロダクト紹介＋生成物実例 ==================== */}
       <section className="bg-paper">
-        <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
-          <SectionLabel>PRODUCT</SectionLabel>
+        <FadeIn>
+          <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
+            <SectionLabel>PRODUCT</SectionLabel>
           <SerifHeading>
             デンピストAIは、患者さまごとの比較説明シートを、その場で生成します。
           </SerifHeading>
@@ -336,11 +341,11 @@ export default function LandingPage() {
               <h3 className="font-serif-jp text-lg font-bold leading-relaxed">
                 義歯カウンセリング
                 <span className="mt-1 block text-sm font-bold text-gold">
-                  ——高単価の成約を生む主力機能
+                  ——高単価メニューの選択肢を届ける主力機能
                 </span>
               </h3>
               <p className="mt-4 text-sm leading-loose text-ink-soft">
-                「調整しても合わない」「痛くて噛めない」に悩む患者さまに、保険と精密義歯の違いを中立に提示。1件の成約が大きな成果になる、利益の柱です。
+                「調整しても合わない」「痛くて噛めない」に悩む患者さまに、保険と精密義歯の違いを中立に提示。1件の提示が医院の大きな成果につながる、提案機会の柱です。高額な義歯こそ家族の理解が成否を分けるため、ご家族への説明を支える3枚目のシートも生成します。
               </p>
             </div>
             <div className="rounded-xl border border-line bg-white p-7">
@@ -356,8 +361,55 @@ export default function LandingPage() {
             </div>
           </div>
           <p className="mt-8 leading-loose">
-            クラウンが毎日の接点を作り、義歯が成果を最大化する。この2枚構造だから、保険メインの医院さまでも導入する意味があります。
+            クラウンが毎日の接点を作り、義歯が選択肢の届け方を完成させる。この2つのカウンセリングがあるから、保険メインの医院さまでも導入する意味があります。
           </p>
+
+          {/* ご家族説明シート（3枚目）の紹介ブロック */}
+          <div className="mt-10 rounded-xl border border-gold/40 bg-accent-tint p-7 md:p-10">
+            {/* モバイルは画像→テキストの順（flex-col-reverse）、PCは左=テキスト・右=画像 */}
+            <div className="flex flex-col-reverse gap-8 md:grid md:grid-cols-2 md:items-center md:gap-10">
+              <div>
+                <h3 className="font-serif-jp text-lg font-bold leading-relaxed md:text-xl">
+                  義歯には、3枚目があります。
+                  <span className="mt-1 block text-sm font-bold text-gold">
+                    ——患者さまの「代弁者」を届けます。
+                  </span>
+                </h3>
+                <p className="mt-4 text-sm leading-loose text-ink-soft">
+                  高額な義歯は、ご家族の理解が欠かせない治療です。失注の最大の原因は、医院の中にはありません。本人が納得しても、帰宅後にご家族へ価値を説明できず、「高いものを勧められた」と反対されてしまう。この現場の課題に応えるのが「ご家族説明シート」です。
+                </p>
+                <p className="mt-4 text-sm leading-loose text-ink-soft">
+                  お口の機能低下と介護・認知症リスクの関係を、厚生労働省・東京大学柏スタディ等の出所付きデータで静かに示す1枚。「保険の入れ歯は、それ自体は正しい選択肢です」と保険を否定しない誠実なトーンで、ご家族との対話を支えます。
+                </p>
+                <ul className="mt-4 space-y-2 text-sm leading-relaxed text-ink-soft">
+                  <li className="flex gap-2">
+                    <span className="mt-0.5 shrink-0 text-gold">・</span>
+                    <span>「人生100年時代」の健康期間・介護期間の視覚化（厚生労働省・令和4年）</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="mt-0.5 shrink-0 text-gold">・</span>
+                    <span>介護 約2.4倍（東京大学・柏スタディ）／認知症 約1.9倍（厚生労働省研究班・JAGES）など出所付きリスクカード</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="mt-0.5 shrink-0 text-gold">・</span>
+                    <span>治療費と介護費用との対比</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="mt-0.5 shrink-0 text-gold">・</span>
+                    <span>治療費の日額換算と月額換算</span>
+                  </li>
+                </ul>
+              </div>
+              <div className="px-2 py-4">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/family-sheet.jpg"
+                  alt="ご家族説明シートの実物"
+                  className="w-full rotate-1 rounded-lg border border-line drop-shadow-2xl"
+                />
+              </div>
+            </div>
+          </div>
 
           <figure className="mt-12">
             <ReportGallery />
@@ -365,14 +417,16 @@ export default function LandingPage() {
               実際の生成例。患者さまの感情や口腔内の状態に合わせて、毎回オリジナルのシートが作成されます。
             </figcaption>
           </figure>
-        </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション3.5：思想（CONCEPT） ==================== */}
       {/* 💡 このページで唯一の暗色セクション（bg-accent）。装飾は既存セクションと同じ SectionLabel のみ */}
       <section className="bg-accent">
-        <div className="mx-auto max-w-5xl px-5 py-20 md:py-32">
-          <SectionLabel>CONCEPT</SectionLabel>
+        <FadeIn>
+          <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
+            <SectionLabel>CONCEPT</SectionLabel>
           <h2 className="font-serif-jp text-2xl font-bold leading-relaxed text-paper md:text-4xl">
             AIは、選択肢を可視化する。寄り添うのは、人。
           </h2>
@@ -396,52 +450,67 @@ export default function LandingPage() {
             </p>
           </div>
 
+          {/* 凡例：グレーアウトの意味を1行で伝える */}
+          <p className="mt-14 text-xs text-paper/50">
+            グレーの領域は、ドクター・スタッフの仕事です（デンピストAIの範囲外）
+          </p>
+
           {/* フェーズ図（画像不使用。HTML/CSSのみ） */}
-          <div className="mt-14 max-w-4xl">
-            {/* PC：ブラケット（壁〜Phase 4をまたぐ。「デンピストAIが担う領域」） */}
-            <div className="mb-3 hidden grid-cols-[1fr_1fr_16px_1fr_1fr_1fr] gap-3 md:grid">
-              <div />
-              <div />
-              <div className="relative col-span-3">
-                <p className="mb-1.5 text-center text-[11px] font-bold tracking-wider text-gold">
-                  デンピストAIが担う領域
-                </p>
-                <div className="relative border-t-2 border-gold">
-                  <span className="absolute -top-0.5 left-0 h-2 w-0.5 bg-gold" />
-                  <span className="absolute -top-0.5 right-0 h-2 w-0.5 bg-gold" />
-                </div>
-              </div>
-              <div />
-            </div>
-            {/* PC：横タイムライン */}
-            <ol className="hidden grid-cols-[1fr_1fr_16px_1fr_1fr_1fr] items-stretch gap-3 md:grid">
-              {CONCEPT_TIMELINE.map((item) =>
-                item === "wall" ? (
-                  <li key="wall" className="relative flex flex-col items-center gap-2 py-1">
-                    <div className="w-1 flex-1 bg-gold/70" aria-hidden="true" />
-                    <span
-                      aria-hidden="true"
-                      className="text-[10px] font-bold tracking-widest text-gold [writing-mode:vertical-rl]"
+          <div className="mt-4 max-w-3xl">
+            <FadeIn delay={300}>
+            {/* PC：横タイムライン。壁〜Phase 4をゴールド枠コンテナで囲み、P1・P2は左外、P5は右外 */}
+            <ol className="hidden grid-cols-[1fr_1fr_minmax(0,3fr)_1fr] items-stretch gap-3 md:grid">
+              {CONCEPT_TIMELINE.map((item, i) => {
+                if (item === "wall") return null; // 壁はコンテナ内の左端に描画
+                if (item.inScope) {
+                  // 先頭のinScope（Phase 3）の時点でコンテナを1つだけ描画。Phase 4（次のinScope）はスキップ
+                  if ((CONCEPT_TIMELINE[i - 1] as ConceptPhase | undefined)?.inScope)
+                    return null;
+                  const next = CONCEPT_TIMELINE[i + 1] as ConceptPhase;
+                  return (
+                    <li
+                      key="group"
+                      className="relative rounded-xl border border-gold/70 bg-white/5 p-3 shadow-[0_0_40px_rgba(176,141,79,0.12)] transition-transform duration-200 hover:scale-[1.06] hover:shadow-[0_0_40px_rgba(176,141,79,0.12),0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-4px_rgba(0,0,0,0.1)]"
                     >
-                      心理的ブロックの壁
-                    </span>
-                    <div className="w-1 flex-1 bg-gold/70" aria-hidden="true" />
-                    {/* 壁の注釈（壁の直下。ボックスより下の空間に1行で表示） */}
-                    <p className="absolute left-1/2 top-full mt-2 w-max -translate-x-1/2 whitespace-nowrap text-xs text-paper/70">
-                      『自費の提案は押し売りでは』という躊躇が、選択肢の提示を止める
-                    </p>
-                  </li>
-                ) : (
+                      {/* 枠線と一体化したラベル（独立した横棒にしない）。壁〜Phase 4の領域中央に配置 */}
+                      <p className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap bg-accent px-2 text-[10px] font-bold leading-none tracking-wider text-gold">
+                        デンピストAIが担う領域
+                      </p>
+                      {/* 左から：壁（ハッチ帯＋ラベル＋注釈）→ Phase 3 → Phase 4（高さは stretch で揃える） */}
+                      <div className="grid h-full grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-2">
+                        <div className="flex w-28 flex-col items-center md:w-32">
+                          <div
+                            className="wall-hatch w-11 flex-1 rounded-sm"
+                            aria-hidden="true"
+                          />
+                          <p className="mt-2 text-center text-[11px] font-bold text-gold">
+                            心理的ブロックの壁
+                          </p>
+                          <p className="mt-1 text-center text-xs leading-relaxed text-paper/70">
+                            『自費の提案は押し売りでは』という躊躇が、選択肢の提示を止める
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-paper/25 p-4">
+                          <ConceptPhaseBox phase={item} />
+                        </div>
+                        <div className="rounded-lg border border-paper/25 p-4">
+                          <ConceptPhaseBox phase={next} />
+                        </div>
+                      </div>
+                    </li>
+                  );
+                }
+                return (
                   <li
                     key={item.no}
-                    className={`rounded-lg border p-4 ${
+                    className={`rounded-lg border p-4 transition-transform duration-200 hover:scale-[1.06] hover:shadow-lg ${
                       item.muted ? "border-paper/15" : "border-paper/25"
                     }`}
                   >
                     <ConceptPhaseBox phase={item} />
                   </li>
-                ),
-              )}
+                );
+              })}
             </ol>
 
             {/* モバイル：壁〜Phase 4をゴールド枠のグループで囲む（ラベルは枠線と一体化） */}
@@ -456,25 +525,21 @@ export default function LandingPage() {
                   return (
                     <div
                       key="group"
-                      className="relative rounded-lg border border-gold/70 p-2.5"
+                      className="relative rounded-xl border border-gold/70 bg-white/5 p-3 shadow-[0_0_40px_rgba(176,141,79,0.12)]"
                     >
                       {/* 枠線と一体化したラベル（独立した横棒にしない） */}
                       <p className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap bg-accent px-2 text-[10px] font-bold leading-none tracking-wider text-gold">
                         デンピストAIが担う領域
                       </p>
-                      {/* 壁（グループ内の最上部） */}
+                      {/* 壁（グループ内の最上部。水平ハッチ帯＋ラベル＋注釈） */}
                       <div
+                        className="wall-hatch h-2 rounded-sm"
                         aria-hidden="true"
-                        className="flex items-center gap-2"
-                      >
-                        <div className="h-1 flex-1 bg-gold/70" />
-                        <span className="whitespace-nowrap text-[10px] font-bold tracking-widest text-gold">
-                          心理的ブロックの壁
-                        </span>
-                        <div className="h-1 flex-1 bg-gold/70" />
-                      </div>
-                      {/* 壁の注釈（壁の直下、1行） */}
-                      <p className="mt-1 text-center text-xs text-paper/70">
+                      />
+                      <p className="mt-2 text-center text-[11px] font-bold text-gold">
+                        心理的ブロックの壁
+                      </p>
+                      <p className="mt-1 text-center text-xs leading-relaxed text-paper/70">
                         『自費の提案は押し売りでは』という躊躇が、選択肢の提示を止める
                       </p>
                       <div className="mt-2 space-y-2">
@@ -501,14 +566,17 @@ export default function LandingPage() {
                 );
               })}
             </div>
+            </FadeIn>
           </div>
-        </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション4：特徴3点 ==================== */}
       <section className="border-y border-line bg-tint">
-        <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
-          <SectionLabel>FEATURES</SectionLabel>
+        <FadeIn>
+          <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
+            <SectionLabel>FEATURES</SectionLabel>
           <SerifHeading>選ばれる3つの理由</SerifHeading>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {[
@@ -534,14 +602,16 @@ export default function LandingPage() {
                 <p className="mt-3 text-sm leading-loose text-ink-soft">{f.body}</p>
               </div>
             ))}
+            </div>
           </div>
-        </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション5：導入フロー ==================== */}
       <section className="bg-paper">
-        <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
-          <SectionLabel>FLOW</SectionLabel>
+        <FadeIn>
+          <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
+            <SectionLabel>FLOW</SectionLabel>
           <SerifHeading>導入は、3ステップ。</SerifHeading>
           <div className="mt-10 grid gap-6 md:grid-cols-3">
             {[
@@ -553,7 +623,7 @@ export default function LandingPage() {
               {
                 step: "STEP 2",
                 title: "はじめの30分だけ、オンラインでご一緒します",
-                body: "貴院専用の設定は、こちらで済ませてお渡しします。30分は設定作業ではありません。使い方のご説明と、『提案への心理的ブロックがあるのは、当たり前のことです。でも、選択肢を届けることこそ、患者さまへのホスピタリティではないでしょうか』——監修の歯科衛生士の考え方をお伝えするキックオフです。あとはスタッフさまだけでお使いいただけます。",
+                body: "貴院専用の設定は、こちらで済ませてお渡しします。貴院の自費価格（上限値）の登録も、このときに行います。未登録の場合は一般相場で試算されます。30分は設定作業ではありません。使い方のご説明と、監修の歯科衛生士の「選択肢を届けることは、患者さまへのホスピタリティ」という考え方をお伝えするキックオフです。あとはスタッフさまだけでお使いいただけます。",
               },
               {
                 step: "STEP 3",
@@ -568,13 +638,23 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-        </div>
+
+          {/* 発行ログの帯カード（3カードの直下・同セクション内） */}
+          <div className="mt-6 rounded-xl border border-line bg-white p-7">
+            <h3 className="font-bold">使い続けるほど、見えてきます。</h3>
+            <p className="mt-3 text-sm leading-loose text-ink-soft">
+              発行ログが「今月、選択肢を何回提示できたか」を記録します。数字が、医院のカウンセリングの成長を静かに可視化します。
+            </p>
+          </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション6：監修者紹介 ==================== */}
       <section className="border-y border-line bg-tint">
-        <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
-          <SectionLabel>SUPERVISOR</SectionLabel>
+        <FadeIn>
+          <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
+            <SectionLabel>SUPERVISOR</SectionLabel>
           <SerifHeading>監修者紹介</SerifHeading>
 
           {/* PC（md以上）は2カラム：左=写真、右=名前行・実績カード・プロフィール・経歴。
@@ -654,8 +734,6 @@ export default function LandingPage() {
           </div>
 
           {/* 本人メッセージ（引用ブロック）：セクション全幅で2カラムの下に配置（変更なし） */}
-
-          {/* 本人メッセージ（引用ブロック） */}
           <blockquote className="mt-10 rounded-xl border border-line bg-white p-8 leading-loose md:p-10">
             <p>
               カウンセリングの現場でずっと感じていたのは、『伝えたいのに、伝わらない』というもどかしさでした。自費の提案に躊躇してしまうのは、売り込みたくないという優しさの裏返しです。でも、選択肢を知らないまま決めてしまう患者さんを何度も見てきました。伝えることを、仕組みに変えたい。デンピストAIには、私が現場で培ってきたカウンセリングの型をすべて込めています。
@@ -666,13 +744,15 @@ export default function LandingPage() {
             {/* 💡 メッセージ〜署名の間隔はモバイルのみ1段階詰める */}
             <p className="mt-3 text-right font-bold md:mt-6">―― 山岸 雪乃</p>
           </blockquote>
-        </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション7：推薦の声 ==================== */}
       <section className="bg-paper">
-        <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
-          <SectionLabel>VOICE</SectionLabel>
+        <FadeIn>
+          <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
+            <SectionLabel>VOICE</SectionLabel>
           <SerifHeading>推薦の声</SerifHeading>
           {/* 💡 差し替え時の分量変動を吸収するため、固定高さを持たない可変レイアウト */}
           {/* 💡 レイアウト切り替え箇所：推薦者が複数になった場合は、
@@ -688,31 +768,41 @@ export default function LandingPage() {
           <blockquote className="mt-10 rounded-xl border border-line bg-white p-8 leading-loose md:p-10">
             {/* 2カラム：左=推薦文、右=写真＋署名。モバイルは縦積み（写真→本文） */}
             <div className="flex flex-col-reverse gap-8 md:flex-row md:gap-10">
-              {/* 💡 コメントが長いためフォントサイズを現行の約80%に縮小（肩書・署名のサイズは変更しない） */}
-              <div className="text-[0.8rem] md:flex-1">
-                <p>
-                  “患者さんに寄り添う”
-                  <br />
-                  “患者さんとご家族に笑顔で暮らしてほしい”
-                  <br />
-                  山岸雪乃さんを思う時に真っ先に浮かぶ言葉です。
-                </p>
-                <p className="mt-6">
-                  山岸さんと出会って8年半。
-                  <br />
-                  日々の診療の中で患者さんと向き合い、歯科衛生士主任となり、更に責任ある立場でスタッフをまとめ、院長との架け橋を務める。
-                  <br />
-                  一般社団法人日本歯科TC協会が目指すトリートメントコーディネーターを体現している方です。
-                </p>
-                <p className="mt-6">
-                  日本でも稀有な入れ歯専門歯科医院での実践経験を惜しみなく提供し、自費の提案に躊躇してしまう歯科医療従事者の方々の背中を押してくれるツールが誕生した事を誇らしく、大変嬉しく思います。
-                </p>
-                <p className="mt-6">
-                  心を寄せる“本物”のカウンセリング。
-                </p>
-                <p className="mt-6">
-                  益々のご活躍を祈念するとともに、愛されるTC（トリートメントコーディネーター）である山岸さんを心から応援しています。
-                </p>
+              <div className="md:flex-1">
+                <VoiceToggle
+                  summary={
+                    <>
+                      <p>
+                        “患者さんに寄り添う”“患者さんとご家族に笑顔で暮らしてほしい”——山岸雪乃さんを思う時に真っ先に浮かぶ言葉です。
+                      </p>
+                      <p className="mt-6">
+                        一般社団法人日本歯科TC協会が目指すトリートメントコーディネーターを体現している方です。日本でも稀有な入れ歯専門歯科医院での実践経験を惜しみなく提供し、自費の提案に躊躇してしまう歯科医療従事者の方々の背中を押してくれるツールが誕生した事を誇らしく、大変嬉しく思います。
+                      </p>
+                    </>
+                  }
+                >
+                  <p>
+                    “患者さんに寄り添う”
+                    <br />
+                    “患者さんとご家族に笑顔で暮らしてほしい”
+                    <br />
+                    山岸雪乃さんを思う時に真っ先に浮かぶ言葉です。
+                  </p>
+                  <p className="mt-6">
+                    山岸さんと出会って8年半。
+                    <br />
+                    日々の診療の中で患者さんと向き合い、歯科衛生士主任となり、更に責任ある立場でスタッフをまとめ、院長との架け橋を務める。
+                    <br />
+                    一般社団法人日本歯科TC協会が目指すトリートメントコーディネーターを体現している方です。
+                  </p>
+                  <p className="mt-6">
+                    日本でも稀有な入れ歯専門歯科医院での実践経験を惜しみなく提供し、自費の提案に躊躇してしまう歯科医療従事者の方々の背中を押してくれるツールが誕生した事を誇らしく、大変嬉しく思います。
+                  </p>
+                  <p className="mt-6">心を寄せる“本物”のカウンセリング。</p>
+                  <p className="mt-6">
+                    益々のご活躍を祈念するとともに、愛されるTC（トリートメントコーディネーター）である山岸さんを心から応援しています。
+                  </p>
+                </VoiceToggle>
               </div>
               {/* 右カラム：カラム自体を内容幅（w-max）にし、写真と署名の中央軸を一致させる */}
               <div className="mx-auto w-max shrink-0">
@@ -738,13 +828,15 @@ export default function LandingPage() {
           <p className="mt-4 text-xs text-ink-soft">
             ※個人の立場からいただいた推薦文です
           </p>
-        </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション8：料金 ==================== */}
       <section className="border-y border-line bg-tint">
-        <div className="mx-auto max-w-4xl px-5 py-16 md:py-24">
-          <SectionLabel>PRICE</SectionLabel>
+        <FadeIn>
+          <div className="mx-auto max-w-4xl px-5 py-16 md:py-24">
+            <SectionLabel>PRICE</SectionLabel>
           <SerifHeading>料金プラン</SerifHeading>
 
           <div className="mt-10 rounded-xl border border-gold/40 bg-white p-7">
@@ -806,7 +898,7 @@ export default function LandingPage() {
             </p>
             <a
               href="/check"
-              className="mt-5 inline-block rounded-lg bg-accent px-6 py-3 text-sm font-bold text-paper transition-opacity hover:opacity-90"
+              className="mt-5 inline-block rounded-lg bg-accent px-6 py-3 text-sm font-bold text-paper shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-md hover:brightness-110"
             >
               詳細分析をはじめる
             </a>
@@ -890,13 +982,15 @@ export default function LandingPage() {
               ※月払いプランの解約は、お申し出いただいた月の翌月末の適用となります
             </li>
           </ul>
-        </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション9：FAQ ==================== */}
       <section className="bg-paper">
-        <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
-          <SectionLabel>FAQ</SectionLabel>
+        <FadeIn>
+          <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
+            <SectionLabel>FAQ</SectionLabel>
           <SerifHeading>よくあるご質問</SerifHeading>
           <dl className="mt-10 space-y-6">
             {[
@@ -936,14 +1030,16 @@ export default function LandingPage() {
               </div>
             ))}
           </dl>
-        </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== セクション10：申し込み ==================== */}
       {/* 💡 視線誘導：アクセントカラー（茶・ゴールド系）の背景に、見出し・本文はpaper系の色 */}
       <section id="apply" className="bg-gold">
-        <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
-          <p className="mb-3 text-sm font-bold tracking-widest text-paper/80">
+        <FadeIn>
+          <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
+            <p className="mb-3 text-sm font-bold tracking-widest text-paper/80">
             TRIAL
           </p>
           <h2 className="font-serif-jp text-2xl font-bold leading-relaxed text-paper md:text-3xl">
@@ -960,7 +1056,8 @@ export default function LandingPage() {
             allowFullScreen
             className="mt-10 h-[600px] w-full rounded-xl border border-line bg-white"
           />
-        </div>
+          </div>
+        </FadeIn>
       </section>
 
       {/* ==================== 全ページ共通の但し書き ==================== */}

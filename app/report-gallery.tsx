@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 
 // ============================================================
 // セクション3 実例ギャラリー（タブ切り替え＋ライトボックス）
-// 義歯：report-sample.jpg / report-sample-2.jpg（全2ページ）
+// 義歯：report-sample.jpg / report-sample-2.jpg / family-sheet.jpg（全3ページ。3枚目はご家族説明シート）
 // 被せ物（クラウン）：report-sample-crown.jpg（全1ページ）
 // ============================================================
 
@@ -66,13 +66,13 @@ export default function ReportGallery() {
       {/* タブ直下のラベル */}
       <p className="mt-4 text-center text-sm font-bold text-ink">
         {tab === "denture"
-          ? "義歯カウンセリングの生成例（全2ページ）"
+          ? "義歯カウンセリングの生成例（全3ページ）"
           : "クラウンカウンセリングの生成例（全1ページ）"}
       </p>
 
       <div className="mt-6">
         {tab === "denture" ? (
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/images/report-sample.jpg"
@@ -97,6 +97,24 @@ export default function ReportGallery() {
               }
               className="w-full cursor-zoom-in rounded-lg border border-line drop-shadow-2xl"
             />
+            {/* 3枚目：ご家族説明シート */}
+            <div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/family-sheet.jpg"
+                alt="デンピストAIが生成したご家族説明シート（義歯）の実例 3ページ目"
+                onClick={() =>
+                  setLightbox({
+                    src: "/images/family-sheet.jpg",
+                    alt: "デンピストAIが生成したご家族説明シート（義歯）の実例 3ページ目",
+                  })
+                }
+                className="w-full cursor-zoom-in rounded-lg border border-line drop-shadow-2xl"
+              />
+              <p className="mt-2 text-center text-xs text-gold">
+                ご家族説明シート
+              </p>
+            </div>
           </div>
         ) : (
           /* eslint-disable-next-line @next/next/no-img-element */
