@@ -76,6 +76,8 @@ const stripTypes = (code) =>
 // --- 対象コードをまとめて評価（同一スコープで自由変数を解決）---
 // 定数は「const NAME = 値;」形式で束ねる（オブジェクトリテラルが文の先頭だとブロックと解釈されるため）
 const bundle = [
+  "const RELATED_SCRIPTS = " + extractConstSrc("RELATED_SCRIPTS"),
+  "const METAPHOR_PRIORITY = " + extractConstSrc("METAPHOR_PRIORITY"),
   "const CANDIDATES = " + extractConstSrc("CANDIDATES"),
   "const CROWN_CANDIDATES = " + extractConstSrc("CROWN_CANDIDATES"),
   "const formatYen = " + extractArrowSrc("formatYen"),

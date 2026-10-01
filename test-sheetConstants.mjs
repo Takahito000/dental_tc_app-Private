@@ -42,6 +42,8 @@ const TALK_MINDSET_LINE = extractConst("TALK_MINDSET_LINE");
 const TALK_MINDSET_LINE_CROWN = extractConst("TALK_MINDSET_LINE_CROWN");
 // 💡 家族向け3ページ目の案内文定数（parseTalkKeywords 内で参照されるため同一スコープに必要）
 const FAMILY_PAGE_TALK_LINE = extractConst("FAMILY_PAGE_TALK_LINE");
+// 💡 カンペ締め句定数（§9.1。parseTalkKeywords 内で参照されるため同一スコープに必要）
+const TALK_CLOSING_LINE = extractConst("TALK_CLOSING_LINE");
 const SHEET_OPENER = extractConst("SHEET_OPENER");
 const SHEET_FIXED_HEADINGS = extractConst("SHEET_FIXED_HEADINGS");
 const applySheetOpener = extractFunction("applySheetOpener");
@@ -116,21 +118,22 @@ const rawV242 = `■ ステップ1／オープニング
 
 const parsed = parseTalkKeywords(rawV242);
 assert(
-  parsed.steps[0].kokorogamae ===
-    TALK_MINDSET_LINE.replace(/^【心構え】/, ""),
-  "A1: ステップ1のkokorogamaeがコード定数に置き換わる（旧AI出力の【心構え】でない）"
+  parsed.mindset === TALK_MINDSET_LINE.replace(/^【心構え】/, "") &&
+    parsed.steps[0].kokorogamae === null,
+  "A1: 心構えはmindsetとして返り、ステップ1のkokorogamaeはnullになる（旧AI出力の【心構え】でない）"
 );
 assert(
-  parsed.steps[0].kokorogamae !== "患者様のペースに合わせて話しかける",
-  "A2: 旧プロンプト出力の【心構え】が二重表示されない（上書きされる）"
+  parsed.steps[0].kokorogamae !== "患者様のペースに合わせて話しかける" &&
+    parsed.mindset !== "患者様のペースに合わせて話しかける",
+  "A2: 旧プロンプト出力の【心構え】が二重表示されない（mindsetのコード定数で上書きされる）"
 );
 assert(
   parsed.steps[0].fullText.includes("【心構え】") === false,
   "A3: fullTextから【心構え】行が除去されている"
 );
 assert(
-  parsed.steps[1].kokorogamae === "聞く姿勢を大切にする",
-  "A4: ステップ2以降のkokorogamaeはAI出力のまま維持"
+  parsed.steps[1].kokorogamae === null,
+  "A4: ステップ2以降のkokorogamaeもnull（心構えはステップ外のmindsetブロックに集約）"
 );
 
 // v2.5（【心構え】なし）でも定数が入る
@@ -139,9 +142,9 @@ const rawV25 = `■ ステップ1／オープニング
 【全文】こんにちは。`;
 const parsed25 = parseTalkKeywords(rawV25);
 assert(
-  parsed25.steps[0].kokorogamae ===
-    TALK_MINDSET_LINE.replace(/^【心構え】/, ""),
-  "A5: v2.5出力（【心構え】なし）でもステップ1に定数が挿入される"
+  parsed25.mindset === TALK_MINDSET_LINE.replace(/^【心構え】/, "") &&
+    parsed25.steps[0].kokorogamae === null,
+  "A5: v2.5出力（【心構え】なし）でもmindsetに定数が入る"
 );
 
 // ===== 変更B: 書き出し定型文のコード結合 =====
@@ -212,9 +215,10 @@ const rawCrownStd = `■ ステップ1／オープニング
 【全文】素材について説明します。`;
 const parsedCrownStd = parseTalkKeywords(rawCrownStd, "crown", "standard");
 assert(
-  parsedCrownStd.steps[0].kokorogamae ===
-    TALK_MINDSET_LINE_CROWN.replace(/^【心構え】/, ""),
-  "C5(マトリクス#4): クラウン standard でクラウン用【心構え】が挿入される"
+  parsedCrownStd.mindset ===
+    TALK_MINDSET_LINE_CROWN.replace(/^【心構え】/, "") &&
+    parsedCrownStd.steps[0].kokorogamae === null,
+  "C5(マトリクス#4): クラウン standard でクラウン用【心構え】がmindsetに挿入される"
 );
 assert(
   parsedCrownStd.steps[0].kokorogamae !== "AIが出力した旧心構え",
@@ -232,7 +236,8 @@ const rawCrownCareful = `■ ステップ0／注意書き
 【全文】まずは検査からはじめましょう。`;
 const parsedCrownCareful = parseTalkKeywords(rawCrownCareful, "crown", "careful");
 assert(
-  parsedCrownCareful.steps[0].kokorogamae === null,
+  parsedCrownCareful.steps[0].kokorogamae === null &&
+    parsedCrownCareful.mindset === null,
   "C8(マトリクス#5): クラウン careful では【心構え】が挿入されず、AI誤出力も除去される"
 );
 assert(
@@ -250,12 +255,72 @@ assert(
   "C10: クラウン careful（【心構え】なし）のステップ0のみ出力が維持される"
 );
 
-// 義歯側の現行動作は変更なし（careful でも従来どおり挿入＝前回実装の維持）
+// 義歯cautious は選択肢提示を行わないモードのため心構えブロックも非表示（クラウンcarefulと同じ扱い）
 const parsedDentureCautious = parseTalkKeywords(rawV25, "denture", "cautious");
 assert(
-  parsedDentureCautious.steps[0].kokorogamae ===
-    TALK_MINDSET_LINE.replace(/^【心構え】/, ""),
-  "C11: 義歯 cautious でも従来どおり【心構え】が挿入される（変更なし）"
+  parsedDentureCautious.mindset === null &&
+    parsedDentureCautious.steps[0].kokorogamae === null,
+  "C11: 義歯 cautious では【心構え】ブロック自体が非表示（選択肢提示しないモードのため）"
+);
+
+// ===== §9.1: カンペ締め句（TALK_CLOSING_LINE）=====
+// 定数文案の完全一致（一字一句。連絡手段・回答期限の言及なし）
+assert(
+  TALK_CLOSING_LINE ===
+    "もちろんです。今日、この場で決めていただく必要はありません。\nお持ち帰りいただいて、ご家族とゆっくりご相談ください。",
+  "D1: 締め句定数が指示書文案と一字一句一致"
+);
+// rawV242（義歯 normal）: 最終ステップの全文末尾に締め句が追記される
+//（既定 familyPageRendered=true のため家族向け案内文の後に締め句が来る＝全文の最後尾）
+const lastNormal = parsed.steps[parsed.steps.length - 1].fullText;
+assert(
+  lastNormal.endsWith(TALK_CLOSING_LINE) &&
+    lastNormal.includes(FAMILY_PAGE_TALK_LINE) &&
+    lastNormal.indexOf(FAMILY_PAGE_TALK_LINE) < lastNormal.indexOf(TALK_CLOSING_LINE),
+  "D2: 義歯 normal で最終ステップ全文末尾に締め句が付与（家族向け案内文の後に連結）"
+);
+// 義歯 insurance_first でも付与
+const parsedIns = parseTalkKeywords(rawV25, "denture", "insurance_first");
+assert(
+  parsedIns.steps[parsedIns.steps.length - 1].fullText.endsWith(TALK_CLOSING_LINE),
+  "D3: 義歯 insurance_first でも締め句が付与"
+);
+// 義歯 cautious では非付与
+assert(
+  !parsedDentureCautious.steps[
+    parsedDentureCautious.steps.length - 1
+  ].fullText.includes(TALK_CLOSING_LINE),
+  "D4: 義歯 cautious では締め句を付与しない"
+);
+// クラウンでは非付与（§9.3）
+const parsedCrownNoClose = parseTalkKeywords(rawCrownStd, "crown", "standard");
+assert(
+  !parsedCrownNoClose.steps[
+    parsedCrownNoClose.steps.length - 1
+  ].fullText.includes(TALK_CLOSING_LINE),
+  "D5: クラウンでは締め句を付与しない（義歯のみ）"
+);
+
+// ===== §9.2: 対応メモ（SHAME_SUPPORT_MEMO）=====
+// コード定数の存在と文案の完全一致（トグルカードの表示位置・折りたたみ初期状態はUIのため目視確認）
+const SHAME_SUPPORT_MEMO = extractConst("SHAME_SUPPORT_MEMO");
+assert(
+  SHAME_SUPPORT_MEMO.title === "『長年放置してしまって』『怒られると思って』と言ったら" &&
+    SHAME_SUPPORT_MEMO.feelings.length === 2 &&
+    SHAME_SUPPORT_MEMO.feelings[0].includes("「自分のせい」と責めています") &&
+    SHAME_SUPPORT_MEMO.feelings[1].endsWith("まず安心を先に届けてください。") &&
+    SHAME_SUPPORT_MEMO.rules.length === 3 &&
+    SHAME_SUPPORT_MEMO.rules[0].lead === "1. 追及しない:" &&
+    SHAME_SUPPORT_MEMO.rules[2].lead === "3. 未来に切り替える:" &&
+    SHAME_SUPPORT_MEMO.phrases.length === 3 &&
+    SHAME_SUPPORT_MEMO.donts.length === 4 &&
+    SHAME_SUPPORT_MEMO.donts[3].item === "他院・前医の批判" &&
+    SHAME_SUPPORT_MEMO.donts[3].reason === "患者の恐怖を刺激するため",
+  "D6: 対応メモ定数が指示書文案どおり存在（気持ち2段落・3ルール・言い回し3件・NG4件。開く目安は削除済み）"
+);
+assert(
+  !JSON.stringify(SHAME_SUPPORT_MEMO).includes("【開く目安】"),
+  "D7: 「開く目安」セクションは削除されている"
 );
 
 // ===== 変更4：シート内セクション見出しのコード化 =====

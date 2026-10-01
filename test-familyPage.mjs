@@ -105,6 +105,9 @@ const bundle = [
   extractFunctionSrc("applyFamilyPageTalkLine"),
   extractFunctionSrc("shouldShowFamilyPageToggle"),
   // ⑥ の第一候補提示価格一致（T9）用に価格解決経路も同一スコープで束ねる
+  // 💡 関連トークスクリプトの発動判定（computeDecision 内の metaphor_flags 参照用）
+  "const RELATED_SCRIPTS = " + extractConstSrc("RELATED_SCRIPTS"),
+  "const METAPHOR_PRIORITY = " + extractConstSrc("METAPHOR_PRIORITY"),
   "const CANDIDATES = " + extractConstSrc("CANDIDATES"),
   "const formatYen = " + extractArrowSrc("formatYen"),
   "const denturePriceRangeText = " + extractArrowSrc("denturePriceRangeText"),

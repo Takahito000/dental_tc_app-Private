@@ -693,17 +693,26 @@ const FAMILY_PAGE_FOOTER_DISCLAIMER =
 const FAMILY_PAGE_TALK_LINE =
   "3ページ目はご家族向けの資料です。よろしければ、ご家族と一緒にご覧ください。";
 
+// 💡 カンペ締め句（コード定数。§9.1。義歯・normal/insurance_first のみ最終ステップ全文末尾へ追記。
+//    連絡手段・回答期限の言及は医院運用依存のため含めない。接続は改行1つ＋そのまま連結）
+const TALK_CLOSING_LINE =
+  "もちろんです。今日、この場で決めていただく必要はありません。\nお持ち帰りいただいて、ご家族とゆっくりご相談ください。";
+
 function applyFamilyPageTalkLine(
   steps: TalkKeywordStep[],
   appMode: string,
   sheetMode: string,
+  familyPageRendered: boolean = true,
 ): void {
   // cautious は指示書明記の除外。insurance_first は3枚目自体を生成しないため、
   // 存在しない3ページ目への言及が残らないよう同じく除外する。
+  // さらに3ページ目生成フラグ（familyPageRendered）と連動させる：
+  // 家族向けページを生成しない場合（トグルOFF）は案内文自体を付与しない。
   if (
     appMode !== "denture" ||
     sheetMode === "cautious" ||
     sheetMode === "insurance_first" ||
+    !familyPageRendered ||
     steps.length === 0
   )
     return;
@@ -712,6 +721,139 @@ function applyFamilyPageTalkLine(
     ? `${last.fullText}\n${FAMILY_PAGE_TALK_LINE}`
     : FAMILY_PAGE_TALK_LINE;
 }
+
+// ===== 関連トークスクリプト（コード定数のみ。LLM/Dify変更は不要） =====
+// 💡 棲み分け原則の継続：文案はユーザー承認済みの定数を一字一句そのまま使用する。
+//    発動条件は computeDecision の metaphor_flags で決定し、表示はステップカード直下に紐付ける。
+type RelatedScript = {
+  id: string;
+  step: number; // 紐付けステップ（1〜4）
+  title: string;
+  body: string;
+  note: string | null;
+};
+
+const RELATED_SCRIPTS: RelatedScript[] = [
+  {
+    id: "M1",
+    step: 1,
+    title: "なぜ噛み切れなくなるのかの比喩",
+    body: "包丁とまな板：包丁の歯が潰れると、いくらまな板に押し当てても切れなくなる。人工歯も同様に、摩耗により鋭利さがなくなると、噛み切れなくなる",
+    note: "メンテナンス性については、摩耗した歯だけを交換することで対応できると伝え、安心いただきましょう",
+  },
+  {
+    id: "M2",
+    step: 1,
+    title: "なぜ上顎の総義歯が落ちないかの比喩",
+    body: "吸盤原理：吸盤も隙間がないほど強固にくっつく。精密に加工すること、そのための時間を確保することは重要",
+    note: "小さく作りたいと言われた場合は、上記によりしっかり覆う必然性を説明しましょう",
+  },
+  {
+    id: "M3",
+    step: 4,
+    title: "初期の痛みは失敗ではないことの比喩",
+    body: "革靴の靴擦れ：どんな高級革靴でも最初は硬くて靴擦れが起きる。入れ歯も最初は痛みがあり得るが、調製や口の粘膜の硬化により少しずつお互いが馴染んでいく",
+    note: "痛いところが出るのはお口に馴染ませるプロセスとして当然のことであり、調整しながら育てていく道具であることを伝えましょう",
+  },
+  {
+    id: "M4",
+    step: 4,
+    title: "最初から完璧に噛めないことの比喩",
+    body: "義足と同じ：入れ歯は失ってしまった身体の一部を補うもので、義足と同じ。筋肉やベロ、かみ合わせのリハビリ（歩行訓練）が不可欠",
+    note: "つけた瞬間に完璧に噛めるものではないため、リハビリの共同作業者として伴走をお伝えしましょう",
+  },
+  {
+    id: "M6",
+    step: 3,
+    title: "保険と自費の違いの説明",
+    body: "保険は悪いものではありません。基本的な機能を回復する制度です。ただ、制度として使える材料、型取りの工程数、技工士がかけられる時間が限定的です。自費は制度上の制限が一切ないため、患者さまの希望を追求できます。",
+    note: "材料の違い以上に、保険ではドクターや技工士が『時間をかけたくてもかけられない構図』をお伝えしましょう",
+  },
+  {
+    id: "M7",
+    step: 2,
+    title: "痛みの発生ロジックの比喩",
+    body: "シーソー理論：一見ぴったりに見えていても、僅かなすき間がガタツキを生む。それはシーソーのように傾いて一点に力が入ってしまう。その日の体調・むくみ・年齢による歯茎の痩せでも起こり得る",
+    note: "単にすき間が原因であると伝えるだけではなく、生きている以上口腔内の変化が絶えずあることも同時に伝えましょう",
+  },
+  {
+    id: "N1",
+    step: 3,
+    title: "時間をかけることの正当性の比喩",
+    body: "オーダースーツ：かけられる時間に制限のある義歯を既製品からサイズを選ぶスーツとすれば、自費義歯は型紙から細かく丁寧に仕上げていくフルオーダースーツ。特に口内は日によっても状態が変わる",
+    note: "通院回数の多さ＝デメリットではなく、それこそが丁寧さ・高品質の証であることをお伝えしましょう",
+  },
+  {
+    id: "N2",
+    step: 1,
+    title: "口が乾いていると柔らかい素材が合わない理由の説明",
+    body: "むしろ痛みに繋がる：口腔内に十分な水分がない状態では、粘膜とシリコーンがくっつくのではなく擦れてしまい、むしろ痛みに繋がる可能性",
+    note: "可能性であり、実際には詳しく診察することをお伝えしましょう",
+  },
+  {
+    id: "N8",
+    step: 1,
+    title: "金属床のメリットの説明",
+    body: "剛性：素材によっては噛んだ際に義歯がたわみ、他の歯に負担がかかることがある。金属床はその剛性から他の歯への負担を最小化したり、あるいは薄く作ることができ発音のしやすさが期待できる。また、温かさが伝わりやすいため、食事の楽しさにも期待ができる",
+    note: null,
+  },
+  {
+    id: "N9",
+    step: 3,
+    title: "柔らかい素材の厚みの説明",
+    body: "柔らかい＝厚い：柔らかい素材の場合、噛む力に耐える土台が必要であるため必然的に厚みが必要",
+    note: "薄く作ると噛む力が分散されるため、噛めないあるいはより強い力で噛む＝痛みが生じる可能性があり得ます",
+  },
+];
+
+// 💡 優先度：主訴直結 > 候補説明 > 費用（指示書§1.1）。同優先度内は定義順（RELATED_SCRIPTS配列順）。
+const METAPHOR_PRIORITY: Record<string, number> = {
+  M1: 0, M3: 0, M4: 0, M7: 0, N2: 0, // 主訴直結
+  M2: 1, N1: 1, N8: 1, N9: 1, // 候補説明
+  M6: 2, // 費用
+};
+
+// 💡 対応メモ（コード定数のみ。§9.2。義歯モード全モードで常設する折りたたみカード。
+//    長期未通院・羞恥を抱える患者への対応ルール。文案は指示書を一字一句そのまま定数化。
+//    構造化データにしておく理由＝§9.2-補足のタイポグラフィ指定
+//    （見出し1段大・太字・青系／ルールは番号＋リード文のみ太字／NG理由は小字グレー等、
+//      全文同色同サイズ実装はNGのためレンダリング側でスタイルを分ける）
+const SHAME_SUPPORT_MEMO = {
+  title: "『長年放置してしまって』『怒られると思って』と言ったら",
+  // 【患者さんの気持ち】の本文（段落ごと）
+  feelings: [
+    "このような発言をする患者さんは、今、自分の歯の状態を「自分のせい」と責めています。歯科医やスタッフから叱られたり、呆れられたりするのではないかと、来院する前から緊張しています。恥ずかしさから、口の中の状態や生活習慣をごまかしたくなる気持ちもあります。同時に、「今日ここに来た」こと自体が、現状を変えたい強い気持ちの表れです。",
+    "この患者さんが求めているのは、説得でも指導でもなく、「責められないと分かる安心」です。何気ない一言や態度にも敏感に反応する状態にあり、少しの指導的な言動でも心を閉ざしてしまいます。だからこそ、まず安心を先に届けてください。",
+  ],
+  // 【3つの対応ルール】（lead=番号＋リード文のみ太字。body=説明文は標準太さ）
+  rules: [
+    {
+      lead: "1. 追及しない:",
+      body: "「なぜ放っておいたのですか」等の問いは絶対にしない。長期の放置は怠惰ではなく、恐怖や生活環境の重なりです",
+    },
+    {
+      lead: "2. 正常化する:",
+      body: "「同じように感じる方はとても多くいらっしゃいます」「久しぶりの受診で不安になる方は珍しくありません」",
+    },
+    {
+      lead: "3. 未来に切り替える:",
+      body: "「今日、相談いただけたことがまず一番の一歩です」「これからのお口のことを一緒に考えましょう」",
+    },
+  ],
+  // 【そのまま使える言い回し】（箇条書き。装飾・強調色なし）
+  phrases: [
+    "「長い間お辛い思いをされていたのですね。よくいらしてくださいました」",
+    "「ここに来ていただいたこと自体が、とても大切な一歩です」",
+    "「これまでのことは、責めるようなことは一切ありません」",
+  ],
+  // 【言ってはいけないこと】（item=本文サイズ・標準色。reason=括弧内の理由は小字グレー）
+  donts: [
+    { item: "「どうしてここまで放っておいたのですか」", reason: "原因追及" },
+    { item: "「もっと早く来ていれば」", reason: "後悔の反芻・脅迫的予後" },
+    { item: "「この状態は珍しいですね」", reason: "特異性の強調＝羞恥増幅" },
+    { item: "他院・前医の批判", reason: "患者の恐怖を刺激するため" },
+  ],
+};
 
 // 1.1 トグル表示条件（careful・未使用者モードではトグル自体を非表示。非活性ではない）
 function shouldShowFamilyPageToggle(sheetMode: string): boolean {
@@ -767,6 +909,7 @@ type Decision = {
   candidatePriceRange: string;
   pricePerDay: string;
   noteFlags: string[];
+  metaphor_flags: string[]; // 関連トークスクリプトの発動ID（最大3件。優先度順）
 };
 
 function computeDecision(f: FormState, overrides: ClinicPriceMap = {}): Decision {
@@ -778,6 +921,7 @@ function computeDecision(f: FormState, overrides: ClinicPriceMap = {}): Decision
       candidatePriceRange: "",
       pricePerDay: "",
       noteFlags: [],
+      metaphor_flags: [], // cautious は全カード非表示（§1.1）
     };
   }
 
@@ -830,7 +974,12 @@ function computeDecision(f: FormState, overrides: ClinicPriceMap = {}): Decision
     sheetMode = "normal";
     if (adjustFailed) c = CANDIDATES.PRECISION;
     else if (complaints.includes("痛い") || ridgeWeak)
-      c = dry ? CANDIDATES.PRECISION : CANDIDATES.SILICONE;
+      // 監修ルール：上顎（および両顎＝上顎を含む安全側）へのシリコーンは原則使わない
+      // （厚みが嘔吐反射・滑舌低下を招く解剖学的・機械的一般論）。下顎のみシリコーン。
+      c =
+        !dry && f.target_jaw === "下顎"
+          ? CANDIDATES.SILICONE
+          : CANDIDATES.PRECISION;
     else if (complaints.includes("外れやすい")) c = CANDIDATES.PRECISION;
     else if (complaints.includes("噛めない") && f.ridge_mucosa === "しっかり")
       c = CANDIDATES.METAL_FD;
@@ -844,6 +993,44 @@ function computeDecision(f: FormState, overrides: ClinicPriceMap = {}): Decision
   if (isMetal && f.cost_sensitivity !== "費用重視") noteFlags.push("ti_option");
   if (c === CANDIDATES.SILICONE) noteFlags.push("silicone_maintenance");
 
+  // ===== 関連トークスクリプトの発動判定（指示書§1.1。優先度順で上位3件のみ格納）=====
+  //    ここに到達時点で sheetMode は cautious 以外（cautious は関数冒頭で早期return済み）
+  const metaphorCandidates: string[] = [];
+  if (
+    sheetMode === "normal" &&
+    (f.denture_duration === "5年以上" || complaints.includes("噛めない"))
+  )
+    metaphorCandidates.push("M1");
+  if (
+    sheetMode === "normal" &&
+    f.remaining_teeth === "1本もない（無歯顎）" &&
+    (f.target_jaw === "上顎" || f.target_jaw === "両顎")
+  )
+    metaphorCandidates.push("M2");
+  if (
+    f.denture_status === "使っていない（初めて）" ||
+    f.adjustment_history === "作り直したがダメ"
+  )
+    metaphorCandidates.push("M3");
+  if (sheetMode === "normal") metaphorCandidates.push("M4");
+  if (noteFlags.includes("cost_conscious") || sheetMode === "insurance_first")
+    metaphorCandidates.push("M6");
+  if (complaints.includes("痛い")) metaphorCandidates.push("M7");
+  if (c.name.includes("精密")) metaphorCandidates.push("N1");
+  if (complaints.includes("痛い") && noteFlags.includes("dry_mouth"))
+    metaphorCandidates.push("N2");
+  if (c.name.includes("金属")) metaphorCandidates.push("N8");
+  if (c.name.includes("弾性樹脂")) metaphorCandidates.push("N9");
+  // 優先度（主訴直結 > 候補説明 > 費用）→ 同優先度は定義順（RELATED_SCRIPTS配列順）
+  const metaphorOrder = new Map(RELATED_SCRIPTS.map((s, i) => [s.id, i]));
+  const metaphor_flags = metaphorCandidates
+    .sort(
+      (a, b) =>
+        METAPHOR_PRIORITY[a] - METAPHOR_PRIORITY[b] ||
+        (metaphorOrder.get(a) ?? 0) - (metaphorOrder.get(b) ?? 0),
+    )
+    .slice(0, 3);
+
   // 💡 価格は「デフォルト定数 → 医院行で上書き」の解決経路を経てから生成する（判定ロジック本体は不変）
   const materialKey = DENTURE_KEY_BY_CANDIDATE.get(c) as string;
   const price = resolveDenturePrice(materialKey, overrides);
@@ -854,6 +1041,7 @@ function computeDecision(f: FormState, overrides: ClinicPriceMap = {}): Decision
     candidatePriceRange: denturePriceRangeText(price),
     pricePerDay: pricePerDayText(price),
     noteFlags,
+    metaphor_flags,
   };
 }
 
@@ -963,7 +1151,8 @@ function parseTalkKeywords(
   raw: string,
   appMode: "denture" | "crown" = "denture",
   sheetMode = "normal",
-): { preamble: string; steps: TalkKeywordStep[] } | null {
+  familyPageRendered = true,
+): { preamble: string; steps: TalkKeywordStep[]; mindset: string | null } | null {
   if (!raw.includes("【キーワード】")) return null;
   const lines = raw.split("\n");
   const steps: TalkKeywordStep[] = [];
@@ -1010,29 +1199,163 @@ function parseTalkKeywords(
   }
   if (current) steps.push(finishStep(current));
 
-  // 💡 変更A／変更3（後方互換）：ステップ1の【心構え】はコード定数に統一する。
-  //    finishStep で AI出力の【心構え】行は全文(fullText)から除去済みのため、
-  //    ここで差し替えれば旧プロンプト出力でも二重表示にならない。
+  // 💡 心構えはステップ1内ではなく警告ボックス直下の独立ブロックで表示する。
+  //    全モードでステップの kokorogamae は null に統一し（AI出力の【心構え】を捨てる）、
+  //    定数から mindset 文字列だけを返す。非表示はクラウンcareful と義歯cautious
+  //    （選択肢提示を行わないモード。「選択肢があると知っていただくことが目的」の締め句と矛盾するため。
+  //     cautious の導線はステップ0冒頭が担うため代替表示は不要）。
   //    表示は「💡 」マーカーが既にあるため、【心構え】プレフィックスは除く。
-  //    クラウンcareful は【心構え】を挿入しない（ステップ0のみの仕様。AIが誤出力した場合は除去のみ）。
-  if (steps.length > 0) {
-    if (appMode === "crown") {
-      if (sheetMode === "careful") {
-        steps.forEach((s) => {
-          s.kokorogamae = null;
-        });
-      } else {
-        steps[0].kokorogamae = TALK_MINDSET_LINE_CROWN.replace(/^【心構え】/, "");
-      }
-    } else {
-      steps[0].kokorogamae = TALK_MINDSET_LINE.replace(/^【心構え】/, "");
-    }
-  }
+  const mindset =
+    steps.length === 0
+      ? null
+      : appMode === "crown"
+        ? sheetMode === "careful"
+          ? null
+          : TALK_MINDSET_LINE_CROWN.replace(/^【心構え】/, "")
+        : sheetMode === "cautious"
+          ? null
+          : TALK_MINDSET_LINE.replace(/^【心構え】/, "");
+  steps.forEach((s) => {
+    s.kokorogamae = null;
+  });
 
   // 💡 家族向け3ページ目の案内文（コード定数で最終ステップの全文へ追加。cautious では追加しない）
-  applyFamilyPageTalkLine(steps, appMode, sheetMode);
+  applyFamilyPageTalkLine(steps, appMode, sheetMode, familyPageRendered);
 
-  return { preamble: preambleLines.join("\n").trim(), steps };
+  // 💡 カンペ締め句（§9.1）：義歯・normal/insurance_first のみ、最終ステップの全文末尾へ追記。
+  //    家族向け案内文の後に続ける形（改行1つ＋そのまま連結）で締め句が最後尾になる。
+  if (
+    appMode === "denture" &&
+    (sheetMode === "normal" || sheetMode === "insurance_first") &&
+    steps.length > 0
+  ) {
+    const last = steps[steps.length - 1];
+    last.fullText = last.fullText
+      ? `${last.fullText}\n${TALK_CLOSING_LINE}`
+      : TALK_CLOSING_LINE;
+  }
+
+  return { preamble: preambleLines.join("\n").trim(), steps, mindset };
+}
+
+// 💡 関連トークスクリプト（例え話）カード：ステップカード直下に折りたたみで表示する
+function RelatedScriptCard({ script }: { script: RelatedScript }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-white rounded-lg border border-amber-200 shadow-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left"
+        aria-expanded={open}
+      >
+        <span className="text-[10px] font-bold text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5 shrink-0">
+          例え話
+        </span>
+        <span className="text-xs font-bold text-slate-800 flex-1">
+          {script.title}
+        </span>
+        <span className="text-slate-400 text-xs shrink-0">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3">
+          <div
+            className="text-xs text-slate-700 whitespace-pre-wrap leading-relaxed"
+            dangerouslySetInnerHTML={{ __html: renderTalkInline(script.body) }}
+          />
+          {script.note && (
+            <p className="mt-2 text-[11px] text-slate-500 leading-relaxed">
+              {script.note}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 💡 対応メモトグル（§9.2）：義歯モード全モードで常設。心構えブロック直下・ステップ1カードの上。
+//    「例え話」とは別色（心構えと同色の青系）で識別する
+function ShameSupportMemoCard() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-white rounded-lg border border-blue-200 shadow-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-left"
+        aria-expanded={open}
+      >
+        <span className="text-[10px] font-bold text-blue-700 bg-blue-100 border border-blue-300 rounded px-1.5 py-0.5 shrink-0">
+          💡 対応メモ
+        </span>
+        <span className="text-xs font-bold text-slate-800 flex-1">
+          {SHAME_SUPPORT_MEMO.title}
+        </span>
+        <span className="text-slate-400 text-xs shrink-0">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-3">
+          {/* 【患者さんの気持ち】本文＝既存カード本文と同サイズ同色（text-xs text-slate-700） */}
+          <section>
+            <h4 className="text-sm font-bold text-blue-900 mb-1">
+              【患者さんの気持ち】
+            </h4>
+            <div className="space-y-1.5">
+              {SHAME_SUPPORT_MEMO.feelings.map((p, i) => (
+                <p key={i} className="text-xs text-slate-700 leading-relaxed">
+                  {p}
+                </p>
+              ))}
+            </div>
+          </section>
+          {/* 【3つの対応ルール】番号＋リード文のみ太字。説明文は標準太さ */}
+          <section>
+            <h4 className="text-sm font-bold text-blue-900 mb-1">
+              【3つの対応ルール】
+            </h4>
+            <ol className="space-y-1.5">
+              {SHAME_SUPPORT_MEMO.rules.map((r, i) => (
+                <li key={i} className="text-xs text-slate-700 leading-relaxed">
+                  <span className="font-bold">{r.lead}</span> {r.body}
+                </li>
+              ))}
+            </ol>
+          </section>
+          {/* 【そのまま使える言い回し】本文サイズ・標準色・箇条書き。装飾・強調色は使わない */}
+          <section>
+            <h4 className="text-sm font-bold text-blue-900 mb-1">
+              【そのまま使える言い回し】
+            </h4>
+            <ul className="space-y-1">
+              {SHAME_SUPPORT_MEMO.phrases.map((p, i) => (
+                <li key={i} className="text-xs text-slate-700 leading-relaxed">
+                  ・{p}
+                </li>
+              ))}
+            </ul>
+          </section>
+          {/* 【言ってはいけないこと】項目本文は本文サイズ・標準色（赤文字は使わない）。
+              括弧内の理由は例え話カードのnoteと同じ小字グレー */}
+          <section>
+            <h4 className="text-sm font-bold text-blue-900 mb-1">
+              【言ってはいけないこと】
+            </h4>
+            <ul className="space-y-1">
+              {SHAME_SUPPORT_MEMO.donts.map((d, i) => (
+                <li key={i} className="text-xs text-slate-700 leading-relaxed">
+                  ・{d.item}
+                  <span className="text-[11px] text-slate-500">
+                    （{d.reason}）
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </div>
+      )}
+    </div>
+  );
 }
 
 const TABLE_COL_WIDTHS = {
@@ -1248,6 +1571,7 @@ type CrownDecision = {
   firstCandidate: string;
   candidatePriceRange: string;
   noteFlags: string[];
+  metaphor_flags: string[];
 };
 
 // 💡 クラウン版判定ロジック（Phase 2）
@@ -1262,6 +1586,7 @@ function computeCrownDecision(
       firstCandidate: "",
       candidatePriceRange: "",
       noteFlags: [],
+      metaphor_flags: [],
     };
   }
 
@@ -1282,6 +1607,7 @@ function computeCrownDecision(
       firstCandidate: "",
       candidatePriceRange: "",
       noteFlags,
+      metaphor_flags: [],
     };
   }
 
@@ -1328,6 +1654,7 @@ function computeCrownDecision(
     firstCandidate: c.name,
     candidatePriceRange: crownPriceText(price),
     noteFlags,
+    metaphor_flags: [],
   };
 }
 
@@ -4734,17 +5061,42 @@ export default function Page() {
                       result.talkScript,
                       formData.mode,
                       decision.sheetMode,
+                      familyPageVisible,
                     );
                     if (!parsed || parsed.steps.length === 0) return null;
                     const kwData = talkView === "keyword" ? parsed : null;
+                    // 💡 関連トークスクリプト（例え話）：発動したものをステップ番号で紐付けてカード化
+                    const metaphorFlags =
+                      (decision as Decision).metaphor_flags ?? [];
+                    const scriptsForStep = (stepNo: number) =>
+                      metaphorFlags
+                        .map((id) =>
+                          RELATED_SCRIPTS.find((s) => s.id === id),
+                        )
+                        .filter(
+                          (s): s is RelatedScript =>
+                            s !== undefined && s.step === stepNo,
+                        );
                     return (
-                      <div className="no-print bg-amber-50/80 p-5 rounded-xl border border-amber-200 w-full max-w-3xl">
+                      <div className="no-print w-full max-w-3xl md:bg-amber-50/80 md:p-5 md:rounded-xl md:border md:border-amber-200">
                         <div className="bg-amber-100 text-amber-900 p-3 rounded-lg text-xs font-bold flex items-center gap-2 mb-4 border border-amber-300">
                           <AlertTriangle size={16} />{" "}
                           患者様には見せないでください（衛生士専用トークガイド））
                         </div>
+                        {parsed.mindset && (
+                          <div className="mb-4 text-xs bg-blue-50 border border-blue-200 text-blue-900 rounded-lg p-2.5 leading-relaxed font-medium">
+                            💡 {parsed.mindset}
+                          </div>
+                        )}
+                        {/* 💡 対応メモ（§9.2）：義歯モード全モードで常設。心構え直下・ステップ1の上。
+                            cautiousでは心構え自体が非表示のため、実質「警告ボックス直下」になる（§9.4.3委任どおり） */}
+                        {formData.mode === "denture" && (
+                          <div className="mb-4">
+                            <ShameSupportMemoCard />
+                          </div>
+                        )}
                         {kwData ? (
-                          <div className="space-y-3">
+                          <div className="space-y-4 md:space-y-3">
                             {kwData.preamble && (
                               <div
                                 className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap"
@@ -4754,45 +5106,45 @@ export default function Page() {
                               />
                             )}
                             {kwData.steps.map((step, i) => (
-                              <div
-                                key={i}
-                                className="bg-white rounded-lg border border-amber-200 p-3 shadow-xs"
-                              >
-                                <h3 className="font-bold text-amber-900 text-sm mb-2">
-                                  {step.heading}
-                                </h3>
-                                {step.keywords.length > 0 ? (
-                                  <ul className="space-y-1.5">
-                                    {step.keywords.map((kw, j) => (
-                                      <li
-                                        key={j}
-                                        className="text-sm font-bold text-slate-800 flex items-start gap-1.5 leading-snug"
-                                      >
-                                        <span className="text-amber-500 shrink-0">
-                                          ◆
-                                        </span>
-                                        <span>{kw}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                ) : (
-                                  <div
-                                    className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"
-                                    dangerouslySetInnerHTML={{
-                                      __html: renderTalkInline(step.fullText),
-                                    }}
+                              <div key={i} className="space-y-2">
+                                <div className="bg-white rounded-lg border border-amber-200 p-4 md:p-3 shadow-xs">
+                                  <h3 className="font-bold text-amber-900 text-sm mb-2">
+                                    {step.heading}
+                                  </h3>
+                                  {step.keywords.length > 0 ? (
+                                    <ul className="space-y-1.5">
+                                      {step.keywords.map((kw, j) => (
+                                        <li
+                                          key={j}
+                                          className="text-sm font-bold text-slate-800 flex items-start gap-1.5 leading-snug"
+                                        >
+                                          <span className="text-amber-500 shrink-0">
+                                            ◆
+                                          </span>
+                                          <span>{kw}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    <div
+                                      className="text-xs leading-relaxed text-slate-700 space-y-4 whitespace-pre-wrap"
+                                      dangerouslySetInnerHTML={{
+                                        __html: renderTalkInline(step.fullText),
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                {scriptsForStep(i + 1).map((script) => (
+                                  <RelatedScriptCard
+                                    key={script.id}
+                                    script={script}
                                   />
-                                )}
-                                {step.kokorogamae && (
-                                  <div className="mt-2.5 text-xs bg-blue-50 border border-blue-200 text-blue-900 rounded-lg p-2.5 leading-relaxed font-medium">
-                                    💡 {step.kokorogamae}
-                                  </div>
-                                )}
+                                ))}
                               </div>
                             ))}
                           </div>
                         ) : parsed ? (
-                          <div className="space-y-3">
+                          <div className="space-y-4 md:space-y-3">
                             {parsed.preamble && (
                               <div
                                 className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap"
@@ -4802,34 +5154,34 @@ export default function Page() {
                               />
                             )}
                             {parsed.steps.map((step, i) => (
-                              <div
-                                key={i}
-                                className="bg-white rounded-lg border border-amber-200 p-3.5 shadow-xs"
-                              >
-                                <h3 className="font-bold text-amber-900 text-sm border-b border-amber-200 pb-1.5 mb-2">
-                                  {step.heading}
-                                </h3>
-                                {step.keywords.length > 0 && (
-                                  <div className="text-[11px] text-slate-500 mb-2">
-                                    <span className="font-bold text-amber-700">
-                                      キーワード：
-                                    </span>
-                                    {step.keywords.join("／")}
-                                  </div>
-                                )}
-                                {step.kokorogamae && (
-                                  <div className="mb-2.5 text-xs bg-blue-50 border border-blue-200 text-blue-900 rounded-lg p-2.5 leading-relaxed font-medium">
-                                    💡 {step.kokorogamae}
-                                  </div>
-                                )}
-                                {step.fullText && (
-                                  <div
-                                    className="text-[13px] leading-loose text-slate-700 whitespace-pre-wrap"
-                                    dangerouslySetInnerHTML={{
-                                      __html: renderTalkInline(step.fullText),
-                                    }}
+                              <div key={i} className="space-y-2">
+                                <div className="bg-white rounded-lg border border-amber-200 p-4 md:p-3 shadow-xs">
+                                  <h3 className="font-bold text-amber-900 text-sm border-b border-amber-200 pb-1.5 mb-2">
+                                    {step.heading}
+                                  </h3>
+                                  {step.keywords.length > 0 && (
+                                    <div className="text-[11px] text-slate-500 mb-2">
+                                      <span className="font-bold text-amber-700">
+                                        キーワード：
+                                      </span>
+                                      {step.keywords.join("／")}
+                                    </div>
+                                  )}
+                                  {step.fullText && (
+                                    <div
+                                      className="text-[13px] leading-loose text-slate-700 whitespace-pre-wrap"
+                                      dangerouslySetInnerHTML={{
+                                        __html: renderTalkInline(step.fullText),
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                {scriptsForStep(i + 1).map((script) => (
+                                  <RelatedScriptCard
+                                    key={script.id}
+                                    script={script}
                                   />
-                                )}
+                                ))}
                               </div>
                             ))}
                           </div>
