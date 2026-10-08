@@ -111,7 +111,7 @@ export default function ReportGallery() {
                 }
                 className="w-full cursor-zoom-in rounded-lg border border-line drop-shadow-2xl"
               />
-              <p className="mt-2 text-center text-xs text-gold">
+              <p className="mt-2 text-center text-xs text-amber-deep">
                 ご家族説明シート
               </p>
             </div>

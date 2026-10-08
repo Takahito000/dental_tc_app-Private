@@ -8,6 +8,7 @@
   --color-paper: #fdfcf9; /* シート紙色 */
   --color-accent: #1e4d5c; /* 基調アクセント（深い青緑） */
   --color-gold: #b08d4f; /* 控えめゴールド（おすすめ・費用） */
+  --color-amber-deep: #7c5c24; /* 濃色アンバー（白系背景上の文字用。gold より WCAG AA 適合） */
   --color-tint: #f5f3ec; /* おすすめブロックの淡い面 */
   --color-rectint: #faf7f0; /* 比較表 第一候補列の淡い面 */
   --color-accent-tint: #eef4f4; /* 選択中チップ・接続ピルの淡い面（2026-08-27 入力UI刷新） */
@@ -62,7 +63,7 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--color-gold);
+  color: var(--color-amber-deep);
   border: 1px solid var(--color-gold);
   background: #fff;
   padding: 1px 8px;

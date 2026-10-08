@@ -13,9 +13,19 @@ import VoiceToggle from "./voice-toggle";
 // 配色は globals.css の @theme カラー変数を使用（LP指示書 セクション2-1）
 // ============================================================
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({
+  children,
+  dark = false,
+}: {
+  children: React.ReactNode;
+  dark?: boolean; // 暗色背景（bg-accent）上では従来どおり text-gold を使う
+}) {
   return (
-    <p className="mb-3 text-sm font-bold tracking-widest text-gold">{children}</p>
+    <p
+      className={`mb-3 text-sm font-bold tracking-widest ${dark ? "text-gold" : "text-amber-deep"}`}
+    >
+      {children}
+    </p>
   );
 }
 
@@ -252,7 +262,7 @@ export default function LandingPage() {
                   無料トライアルに申し込む（4週間・無料）
                 </CtaLink>
                 <p className="mt-4 text-xs text-ink-soft">
-                  ※現在、モニター医院さまを募集しています
+                  ※現在、モニター医院さまを募集しています／クレジットカード登録不要・自動課金はありません
                 </p>
               </div>
             </FadeIn>
@@ -286,7 +296,7 @@ export default function LandingPage() {
             </p>
             <ul className="space-y-4">
               <li className="flex gap-3">
-                <span className="mt-1 shrink-0 text-gold">■</span>
+                <span className="mt-1 shrink-0 text-amber-deep">■</span>
                 <span>
                   <strong>「売り込み」と思われたくない</strong>
                   <span className="block text-ink-soft">
@@ -295,7 +305,7 @@ export default function LandingPage() {
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="mt-1 shrink-0 text-gold">■</span>
+                <span className="mt-1 shrink-0 text-amber-deep">■</span>
                 <span>
                   <strong>提案できるのが院長やベテランだけ</strong>
                   <span className="block text-ink-soft">
@@ -304,7 +314,7 @@ export default function LandingPage() {
                 </span>
               </li>
               <li className="flex gap-3">
-                <span className="mt-1 shrink-0 text-gold">■</span>
+                <span className="mt-1 shrink-0 text-amber-deep">■</span>
                 <span>
                   <strong>説明の質がスタッフによってばらつく</strong>
                   <span className="block text-ink-soft">
@@ -340,7 +350,7 @@ export default function LandingPage() {
             <div className="rounded-xl border border-line bg-white p-7">
               <h3 className="font-serif-jp text-lg font-bold leading-relaxed">
                 義歯カウンセリング
-                <span className="mt-1 block text-sm font-bold text-gold">
+                <span className="mt-1 block text-sm font-bold text-amber-deep">
                   ——高単価メニューの選択肢を届ける主力機能
                 </span>
               </h3>
@@ -351,7 +361,7 @@ export default function LandingPage() {
             <div className="rounded-xl border border-line bg-white p-7">
               <h3 className="font-serif-jp text-lg font-bold leading-relaxed">
                 クラウンカウンセリング
-                <span className="mt-1 block text-sm font-bold text-gold">
+                <span className="mt-1 block text-sm font-bold text-amber-deep">
                   ——毎日の診療で使える頻度の柱
                 </span>
               </h3>
@@ -371,7 +381,7 @@ export default function LandingPage() {
               <div>
                 <h3 className="font-serif-jp text-lg font-bold leading-relaxed md:text-xl">
                   義歯には、3枚目があります。
-                  <span className="mt-1 block text-sm font-bold text-gold">
+                  <span className="mt-1 block text-sm font-bold text-amber-deep">
                     ——患者さまの「代弁者」を届けます。
                   </span>
                 </h3>
@@ -383,19 +393,19 @@ export default function LandingPage() {
                 </p>
                 <ul className="mt-4 space-y-2 text-sm leading-relaxed text-ink-soft">
                   <li className="flex gap-2">
-                    <span className="mt-0.5 shrink-0 text-gold">・</span>
+                    <span className="mt-0.5 shrink-0 text-amber-deep">・</span>
                     <span>「人生100年時代」の健康期間・介護期間の視覚化（厚生労働省・令和4年）</span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="mt-0.5 shrink-0 text-gold">・</span>
+                    <span className="mt-0.5 shrink-0 text-amber-deep">・</span>
                     <span>介護 約2.4倍（東京大学・柏スタディ）／認知症 約1.9倍（厚生労働省研究班・JAGES）など出所付きリスクカード</span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="mt-0.5 shrink-0 text-gold">・</span>
+                    <span className="mt-0.5 shrink-0 text-amber-deep">・</span>
                     <span>治療費と介護費用との対比</span>
                   </li>
                   <li className="flex gap-2">
-                    <span className="mt-0.5 shrink-0 text-gold">・</span>
+                    <span className="mt-0.5 shrink-0 text-amber-deep">・</span>
                     <span>治療費の日額換算と月額換算</span>
                   </li>
                 </ul>
@@ -426,7 +436,7 @@ export default function LandingPage() {
       <section className="bg-accent">
         <FadeIn>
           <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
-            <SectionLabel>CONCEPT</SectionLabel>
+            <SectionLabel dark>CONCEPT</SectionLabel>
           <h2 className="font-serif-jp text-2xl font-bold leading-relaxed text-paper md:text-4xl">
             AIは、選択肢を可視化する。寄り添うのは、人。
           </h2>
@@ -597,11 +607,27 @@ export default function LandingPage() {
               },
             ].map((f) => (
               <div key={f.no} className="rounded-xl border border-line bg-white p-7">
-                <p className="font-serif-jp text-2xl font-bold text-gold">{f.no}</p>
+                <p className="font-serif-jp text-2xl font-bold text-amber-deep">{f.no}</p>
                 <h3 className="mt-3 font-bold leading-relaxed">{f.title}</h3>
                 <p className="mt-3 text-sm leading-loose text-ink-soft">{f.body}</p>
               </div>
             ))}
+            </div>
+          </div>
+        </FadeIn>
+      </section>
+
+      {/* ==================== セクション4.5：説明の再現性 ==================== */}
+      <section className="bg-paper">
+        <FadeIn>
+          <div className="mx-auto max-w-5xl px-5 py-16 md:py-24">
+            <div className="mx-auto max-w-2xl border-l-2 border-gold pl-6">
+              <h2 className="font-serif-jp text-xl font-bold leading-relaxed md:text-2xl">
+                説明の再現性は、医院の資産です。
+              </h2>
+              <p className="mt-4 text-sm leading-loose text-ink-soft md:text-base">
+                誰が対応しても、同じ内容の資料が患者さんに届く。担当者の記憶やその日の調子に、説明の質を委ねない。それが、医院の説明を「個人の能力」から「医院の仕組み」に変えます。
+              </p>
             </div>
           </div>
         </FadeIn>
@@ -632,7 +658,7 @@ export default function LandingPage() {
               },
             ].map((s) => (
               <div key={s.step} className="relative rounded-xl border border-line bg-white p-7">
-                <p className="text-xs font-bold tracking-widest text-gold">{s.step}</p>
+                <p className="text-xs font-bold tracking-widest text-amber-deep">{s.step}</p>
                 <h3 className="mt-2 font-bold leading-relaxed">{s.title}</h3>
                 <p className="mt-3 text-sm leading-loose text-ink-soft">{s.body}</p>
               </div>
@@ -641,9 +667,9 @@ export default function LandingPage() {
 
           {/* 発行ログの帯カード（3カードの直下・同セクション内） */}
           <div className="mt-6 rounded-xl border border-line bg-white p-7">
-            <h3 className="font-bold">使い続けるほど、見えてきます。</h3>
+            <h3 className="font-bold">発行ログ——いつ、誰が、何を渡したか。</h3>
             <p className="mt-3 text-sm leading-loose text-ink-soft">
-              発行ログが「今月、選択肢を何回提示できたか」を記録します。数字が、医院のカウンセリングの成長を静かに可視化します。
+              シートの発行履歴はすべて記録されます。「あの患者さんには何をお渡ししたか」を、あとから確認できます。説明の再現に、記憶に頼る必要はありません。
             </p>
           </div>
           </div>
@@ -716,17 +742,17 @@ export default function LandingPage() {
               {/* 経歴・メディア */}
               <ul className="mt-4 space-y-2 text-sm leading-relaxed text-ink-soft md:mt-6">
                 <li className="flex gap-3">
-                  <span className="mt-0.5 shrink-0 text-gold">・</span>
+                  <span className="mt-0.5 shrink-0 text-amber-deep">・</span>
                   <span>JADTC 認定トリートメントコーディネーターMaster</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="mt-0.5 shrink-0 text-gold">・</span>
+                  <span className="mt-0.5 shrink-0 text-amber-deep">・</span>
                   <span>
                     専門誌「デンタルハイジーン」（医歯薬出版）取材掲載（Vol.40 No.5、Vol.41 No.6）
                   </span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="mt-0.5 shrink-0 text-gold">・</span>
+                  <span className="mt-0.5 shrink-0 text-amber-deep">・</span>
                   <span>歯科衛生士・TC向けセミナー登壇（2022年〜）</span>
                 </li>
               </ul>
@@ -847,10 +873,10 @@ export default function LandingPage() {
             </h4>
             {/* 💡 内訳（控えめ・バーなし）。合計と月額の対比が視覚的な主役 */}
             <p className="mt-3 text-xs leading-relaxed text-ink-soft">
-              <span className="font-serif-jp">義歯 1件成約 約150,000円</span>
-              <span className="mx-1.5 text-gold">＋</span>
+              <span>義歯 1件成約 約150,000円</span>
+              <span className="mx-1.5 text-amber-deep">＋</span>
               <br className="sm:hidden" />
-              <span className="font-serif-jp">クラウン 1件成約 約100,000円〜</span>
+              <span>クラウン 1件成約 約100,000円〜</span>
             </p>
             <div className="mt-4 space-y-3">
               {/* 合計（最長・ゴールド） */}
@@ -861,7 +887,7 @@ export default function LandingPage() {
                 <div className="h-2.5 min-w-4 flex-1 bg-line">
                   <div className="h-full bg-gold" style={{ width: "100%" }} />
                 </div>
-                <span className="shrink-0 whitespace-nowrap font-serif-jp text-xs font-bold text-ink sm:text-sm">
+                <span className="shrink-0 whitespace-nowrap text-xs font-bold text-ink sm:text-sm">
                   約250,000円〜
                 </span>
               </div>
@@ -873,7 +899,7 @@ export default function LandingPage() {
                 <div className="h-2.5 min-w-4 flex-1 bg-line">
                   <div className="h-full bg-ink-soft" style={{ width: "16%" }} />
                 </div>
-                <span className="shrink-0 whitespace-nowrap font-serif-jp text-xs font-bold text-ink sm:text-sm">
+                <span className="shrink-0 whitespace-nowrap text-xs font-bold text-ink sm:text-sm">
                   39,800円<span className="text-[10px] font-normal text-ink-soft">（税別）</span>
                 </span>
               </div>
@@ -950,7 +976,7 @@ export default function LandingPage() {
                     <td className="border-b border-line px-4 py-4 font-bold align-top">
                       {row.plan}
                       {"highlight" in row && row.highlight && (
-                        <span className="ml-2 inline-block rounded-full border border-gold px-2 py-0.5 align-middle text-[10px] font-bold tracking-wider text-gold">
+                        <span className="ml-2 inline-block rounded-full border border-gold px-2 py-0.5 align-middle text-[10px] font-bold tracking-wider text-amber-deep">
                           おすすめ
                         </span>
                       )}
@@ -973,7 +999,7 @@ export default function LandingPage() {
             <li>※価格はすべて税別です</li>
             <li>※トライアル期間終了後、自動で課金・移行されることはありません</li>
             <li>
-              ※モニター医院さまは随時募集しています。義歯・クラウンの相談機会が月数件の医院さまでも効果をご実感いただけるよう、トライアルと合わせて約6ヶ月の期間をご用意しています
+              ※モニター医院さまは随時募集しています。義歯・クラウンの相談機会が月数件の医院さまでも効果をご実感いただけるよう、トライアルと合わせて約6ヶ月の期間をご用意しています。クレジットカードの登録は不要です。トライアル終了後に自動で課金されることはありません。
             </li>
             <li>
               ※年払いプランは割引を適用しているため、途中解約の場合もご返金はいたしかねます
@@ -1020,7 +1046,7 @@ export default function LandingPage() {
                 className="rounded-xl border border-line bg-white p-6"
               >
                 <dt className="font-bold leading-relaxed">
-                  <span className="mr-2 text-gold">Q.</span>
+                  <span className="mr-2 text-amber-deep">Q.</span>
                   {item.q}
                 </dt>
                 <dd className="mt-3 text-sm leading-loose text-ink-soft">
@@ -1035,18 +1061,21 @@ export default function LandingPage() {
       </section>
 
       {/* ==================== セクション10：申し込み ==================== */}
-      {/* 💡 視線誘導：アクセントカラー（茶・ゴールド系）の背景に、見出し・本文はpaper系の色 */}
+      {/* 💡 視線誘導：アクセントカラー（茶・ゴールド系）の背景。見出しはpaper系（大きなテキスト基準）、本文・注記は text-ink（金地上でAA確保） */}
       <section id="apply" className="bg-gold">
         <FadeIn>
           <div className="mx-auto max-w-3xl px-5 py-16 md:py-24">
-            <p className="mb-3 text-sm font-bold tracking-widest text-paper/80">
+            <p className="mb-3 text-sm font-bold tracking-widest text-ink">
             TRIAL
           </p>
           <h2 className="font-serif-jp text-2xl font-bold leading-relaxed text-paper md:text-3xl">
             まずは4週間、無料でお試しください
           </h2>
-          <p className="mt-6 leading-loose text-paper/90">
+          <p className="mt-6 leading-loose text-ink">
             下記フォームからお申し込みください。内容を確認後、こちらからご連絡し、貴院専用の設定を行った上で、オンラインキックオフ（30分）の日程をご相談させていただきます。
+          </p>
+          <p className="mt-4 text-xs text-ink">
+            所要時間は1分ほどです。
           </p>
           {/* 💡 Notionフォームのiframe埋め込み（埋め込みコード指定どおり） */}
           <iframe
