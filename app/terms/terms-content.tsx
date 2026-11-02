@@ -325,7 +325,7 @@ export default function TermsContent() {
           rel="noopener noreferrer"
           className="text-accent underline underline-offset-2"
         >
-          問い合わせフォーム（kimishikaと同一のフォームを使用）
+          問い合わせフォーム
         </a>
       </p>
     </div>

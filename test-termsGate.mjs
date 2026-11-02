@@ -123,9 +123,9 @@ for (let i = 1; i <= 17; i++) {
 }
 ok(termsContent.includes("2026年11月5日 制定・施行"),
   "S7-3 付則の制定日（2026年11月5日）");
-ok(termsContent.includes("kimishikaと同一のフォームを使用") &&
-  termsContent.includes("target=\"_blank\""),
-  "S7-4 問い合わせフォームが別タブリンク");
+ok(termsContent.includes('href={CONTACT_FORM_URL}') && termsContent.includes("問い合わせフォーム") &&
+  !termsContent.includes("問い合わせフォーム（kimishikaと同一のフォームを使用）"),
+  "S7-4 問い合わせフォームが別タブリンク（付則の重複表記なし）");
 ok(!termsContent.includes("残タスク") && !termsContent.includes("確定事項メモ") && !termsContent.includes("作成の要点"),
   "S7-5 運営メモが公開テキストに含まれない");
 
