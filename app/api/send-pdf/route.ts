@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { hasTermsConsent } from "@/lib/terms";
 import { Resend } from "resend";
 
 // 💡 PDF 添付メールのサイズ上限（バイナリ換算 5MB）
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
     const supabase = getSupabaseAdmin();
     const { data: clinic, error } = await supabase
       .from("clinics")
-      .select("print_email, is_demo")
+      .select("id, print_email, is_demo")
       .eq("access_token", accessToken)
       .single();
 
@@ -87,6 +88,15 @@ export async function POST(req: Request) {
     if (clinic.is_demo === true) {
       return NextResponse.json(
         { ok: false, error: "デモ版ではメール送信はご利用いただけません。" },
+        { status: 403 }
+      );
+    }
+
+    // 💡 KC-063：利用規約 同意ゲート（サーバ側ガード）。未同意は403。
+    const consented = await hasTermsConsent(getSupabaseAdmin(), clinic.id);
+    if (!consented) {
+      return NextResponse.json(
+        { ok: false, error: "利用規約への同意が必要です。" },
         { status: 403 }
       );
     }

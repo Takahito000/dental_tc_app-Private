@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { isTestStaffName } from "@/lib/testLogs";
 import { normalizeFamilyPageInputs } from "@/lib/familyPageLog";
+import { hasTermsConsent } from "@/lib/terms";
 
 export async function POST(req: Request) {
   try {
@@ -48,6 +49,27 @@ export async function POST(req: Request) {
           .eq("access_token", clinicToken)
           .single();
         clinicId = clinic?.id ?? null;
+
+        // ----------------------------------------------------
+        // 💡 KC-063：利用規約 同意ゲート（サーバ側ガード）
+        //    医院を特定できた場合、現行規約バージョンへの同意レコードが無ければ
+        //    403 で拒否する（同意画面への誘導はクライアント側が行う）。
+        //    チェック失敗（テーブル未作成等）はフェイルセーフで通す。
+        // ----------------------------------------------------
+        if (clinicId) {
+          const consented = await hasTermsConsent(supabase, clinicId);
+          if (!consented) {
+            return NextResponse.json(
+              {
+                success: false,
+                termsConsentRequired: true,
+                error:
+                  "デンピストAIのご利用には、利用規約への同意が必要です。",
+              },
+              { status: 403 }
+            );
+          }
+        }
 
         if (clinicId && clinic?.plan === "kimishika") {
           const { data: newCount, error: rpcError } = await supabase.rpc(
