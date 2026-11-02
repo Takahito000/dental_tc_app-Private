@@ -2892,7 +2892,13 @@ export default function Page() {
         });
         }
       } else {
-        showError("AI生成エラー: " + (data.error || "通信エラー"));
+        // 💡 KC-056：月100回到達時は「AI生成エラー:」プレフィックスを付けず、
+        //    APIが返した案内文言（複数行）をそのまま表示する
+        showError(
+          data.monthlyLimitReached
+            ? data.error
+            : "AI生成エラー: " + (data.error || "通信エラー")
+        );
       }
     } catch (err: any) {
       clearTimeout(fetchTimeout);
@@ -4919,7 +4925,7 @@ export default function Page() {
               // 分類不能（既に日本語化済みの案内）は従来表示のまま
               if (ce.kind === "other") {
                 return (
-                  <div className="no-print mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold">
+                  <div className="no-print mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs font-semibold whitespace-pre-wrap">
                     {ce.headline}
                   </div>
                 );

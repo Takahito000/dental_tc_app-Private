@@ -29,6 +29,56 @@ export async function POST(req: Request) {
       );
     }
 
+    // ----------------------------------------------------
+    // 💡 KC-056：kimishika特典医院の月100回制御
+    //    Dify呼び出しの前に医院を特定し、plan='kimishika' の場合のみ
+    //    当月の生成回数をDB側で原子インクリメントする。
+    //    上限到達（RPCがnullを返す）の場合はDifyを呼ばず案内を返す（コストを発生させない）。
+    //    RPC呼び出し失敗（マイグレーション未適用等）はフェイルセーフで
+    //    従来通り生成を続ける（デプロイ先於適用でも既存挙動が壊れない）。
+    // ----------------------------------------------------
+    let clinicId: string | null = null;
+    const clinicToken = (body.token || body.access_token || "").toString().trim();
+    if (clinicToken) {
+      try {
+        const supabase = getSupabaseAdmin();
+        const { data: clinic } = await supabase
+          .from("clinics")
+          .select("id, plan")
+          .eq("access_token", clinicToken)
+          .single();
+        clinicId = clinic?.id ?? null;
+
+        if (clinicId && clinic?.plan === "kimishika") {
+          const { data: newCount, error: rpcError } = await supabase.rpc(
+            "try_increment_clinic_monthly_usage",
+            { p_clinic_id: clinicId, p_limit: 100 }
+          );
+          if (rpcError) {
+            console.warn(
+              "Monthly Usage RPC Warning (fail-safe: 従来通り生成):",
+              rpcError.message
+            );
+          } else if (newCount === null) {
+            return NextResponse.json(
+              {
+                success: false,
+                monthlyLimitReached: true,
+                error:
+                  "今月の無料利用枠（月100回）に達しました。\n翌月1日にリセットされます。",
+              },
+              { status: 403 }
+            );
+          }
+        }
+      } catch (limitErr) {
+        console.error(
+          "Monthly Usage Check Error (fail-safe: 従来通り生成):",
+          limitErr
+        );
+      }
+    }
+
     // Dify Completion API へリクエスト送信
     const difyRes = await fetch(targetUrl, {
       method: "POST",
@@ -234,21 +284,9 @@ export async function POST(req: Request) {
     // Supabase への利用ログ書き込み処理（遅延初期化）
     // ----------------------------------------------------
     let patientAnonId = "";
-    let clinicId: string | null = null;
+    // 💡 clinicId は冒頭の月100回制御チェックで既に解決済み（未送信なら null）
     try {
       const supabase = getSupabaseAdmin();
-
-      // 💡 アクセストークンから医院を特定し、ログの clinic_id を動的化する
-      //    （固定IDのままだと、医院別の利用集計・課金カウント・ヘルススコア監視が全て壊れるため）
-      const clinicToken = (body.token || body.access_token || "").toString().trim();
-      if (clinicToken) {
-        const { data: clinic } = await supabase
-          .from("clinics")
-          .select("id")
-          .eq("access_token", clinicToken)
-          .single();
-        clinicId = clinic?.id ?? null;
-      }
 
       if (!clinicId) {
         console.warn("Supabase Log Skipped: token未送信または未登録のためログを記録しませんでした");
