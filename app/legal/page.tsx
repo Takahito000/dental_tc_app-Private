@@ -88,6 +88,9 @@ export default function LegalPage() {
             <a href="/" className="underline hover:text-ink">
               トップページ
             </a>
+            <a href="/terms" className="underline hover:text-ink">
+              利用規約
+            </a>
             <a href="/privacy" className="underline hover:text-ink">
               プライバシーポリシー
             </a>

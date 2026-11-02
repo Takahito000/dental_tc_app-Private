@@ -1109,6 +1109,9 @@ export default function LandingPage() {
               </div>
             </div>
             <nav className="flex gap-6 text-xs text-ink-soft">
+              <a href="/terms" className="underline hover:text-ink">
+                利用規約
+              </a>
               <a href="/privacy" className="underline hover:text-ink">
                 プライバシーポリシー
               </a>

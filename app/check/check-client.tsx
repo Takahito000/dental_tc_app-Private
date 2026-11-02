@@ -426,6 +426,15 @@ export default function CheckClient() {
           </button>
         </div>
       )}
+      {/* 💡 KC-063: フッター（利用規約・プライバシーポリシー） */}
+      <footer className="w-full px-5 py-6 text-center text-[11px] text-ink-soft flex gap-4 justify-center">
+        <a href="/terms" className="underline hover:text-ink">
+          利用規約
+        </a>
+        <a href="/privacy" className="underline hover:text-ink">
+          プライバシーポリシー
+        </a>
+      </footer>
     </div>
   );
 }

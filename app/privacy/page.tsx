@@ -59,6 +59,19 @@ export default function PrivacyPage() {
             ご入力いただいた情報の管理は、運営者（CS.lab／以下「当方」）が責任を持って適切に行います。情報の開示・訂正・削除をご希望の場合は、お問い合わせフォームよりご請求ください。
           </p>
         </section>
+
+        <section className="mt-8">
+          <h2 className="font-bold">■ 外部AIサービスへの送信について</h2>
+          <p className="mt-3 text-sm text-ink-soft">
+            本サービスは、シート等の生成処理を行うにあたり、外部のAIプラットフォーム（Dify）およびAIモデルプロバイダのAPIを利用します。ご入力いただいた条件情報は、生成処理の実行を目的としてこれらの外部サービスに送信されます。
+          </p>
+          <p className="mt-3 text-sm text-ink-soft">
+            ご入力いただく条件情報に、患者さま個人を識別できる情報（氏名・生年月日・電話番号・住所・カルテ番号・保険証番号等）は含めない仕様となっております。
+          </p>
+          <p className="mt-3 text-sm text-ink-soft">
+            また、送信されたデータが外部サービスのAIモデルの再学習に利用されない設定となっていることを、運営が確認した上で利用しています。
+          </p>
+        </section>
       </main>
 
       {/* ==================== 全ページ共通の但し書き ==================== */}
@@ -73,6 +86,9 @@ export default function PrivacyPage() {
           <nav className="mt-4 flex gap-6">
             <a href="/" className="underline hover:text-ink">
               トップページ
+            </a>
+            <a href="/terms" className="underline hover:text-ink">
+              利用規約
             </a>
             <a href="/legal" className="underline hover:text-ink">
               特定商取引法に基づく表記

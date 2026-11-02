@@ -466,6 +466,16 @@ export default function LogsClient() {
         <p className="mt-8 text-[11px] leading-relaxed text-ink-soft">
           ※このページのURLにはアクセストークンが含まれています。URLの共有・漏洩にご注意ください。
         </p>
+
+        {/* 💡 KC-063: フッター（利用規約・プライバシーポリシー） */}
+        <footer className="mt-6 flex gap-4 text-[11px] text-ink-soft">
+          <a href="/terms" className="underline hover:text-ink">
+            利用規約
+          </a>
+          <a href="/privacy" className="underline hover:text-ink">
+            プライバシーポリシー
+          </a>
+        </footer>
       </div>
     </main>
   );
