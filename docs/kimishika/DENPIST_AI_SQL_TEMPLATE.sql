@@ -16,6 +16,11 @@
 --   同一メールアドレスで再実行しても新規発行せず、既存のトークンを返す
 --   （医院レコードの重複作成もしない）。
 --
+-- 登録内容:
+--   name / access_token(発行トークン) / plan='kimishika' / kimishika_email(冪等キー)
+--   / print_email（PDFメール送信先。kimishika登録メールアドレスと同じ値を設定
+--     → 医院はツール内の「PDFをメールで送信」機能をそのまま使える）
+--
 -- 前提:
 --   マイグレーション 20261102000000_kimishika_monthly_limit.sql が適用済みであること。
 --
@@ -23,10 +28,11 @@
 --   医院名にシングルクォート(')が含まれる場合は '' に二重化してから置換すること。
 -- ============================================================
 
-insert into public.clinics (name, access_token, plan, kimishika_email)
+insert into public.clinics (name, access_token, print_email, plan, kimishika_email)
 values (
   '{医院名}',
   'kim' || replace(gen_random_uuid()::text, '-', ''),
+  lower(trim('{メールアドレス}')),
   'kimishika',
   lower(trim('{メールアドレス}'))
 )

@@ -71,8 +71,10 @@ const lastStmt = template.trim().split(";").filter((s) => s.trim()).pop();
 ok(/select\s+access_token\s+as\s+token/i.test(lastStmt),
   "A4-3 最後の文がトークン単体のSELECT（コピー可能な形で返る）");
 ok(template.includes("'kimishika'"), "A4-4 プラン種別 kimishika が登録される");
+ok(/insert into public\.clinics \([^)]*print_email/.test(template.replace(/\n/g, " ")),
+  "A4-5 print_email（本番NOT NULL列）がINSERTに含まれる");
 ok(!/service_role|SUPABASE_SERVICE_ROLE_KEY|apikey|Bearer/i.test(template),
-  "A4-5 テンプレートに秘匿情報を含まない");
+  "A4-6 テンプレートに秘匿情報を含まない");
 
 // ============================================================
 // Part B: DB検証（KIMISHIKA_PG 指定時のみ）
@@ -89,9 +91,10 @@ if (!pg) {
   console.log("\nPart B: DB検証 (%s)", pg);
 
   // B0: クリーンな医院として検証用トークンを準備（存在しなければ作成）
+  //     print_email は本番スキーマで NOT NULL（デフォルトなし）のため必須
   const ensureClinic = (token) => {
-    psql(`insert into public.clinics (name, access_token, plan, kimishika_email)
-      select 'KC056検証医院', '${token}', 'kimishika', '${token}@kimishika-test.example'
+    psql(`insert into public.clinics (name, access_token, print_email, plan, kimishika_email)
+      select 'KC056検証医院', '${token}', '${token}@kimishika-test.example', 'kimishika', '${token}@kimishika-test.example'
       where not exists (select 1 from public.clinics where access_token='${token}')`);
     return psql(`select id from public.clinics where access_token='${token}'`);
   };
@@ -139,6 +142,8 @@ if (!pg) {
   ok(rows === "1", `B4-3 医院レコードが重複作成されていない（${rows}件）`);
   const planSet = psql(`select plan='kimishika' from public.clinics where kimishika_email='kc056-dummy@test.example'`);
   ok(planSet === "t", "B4-4 プラン種別 kimishika が登録されている");
+  const printEmail = psql(`select print_email='kc056-dummy@test.example' from public.clinics where kimishika_email='kc056-dummy@test.example'`);
+  ok(printEmail === "t", "B4-5 print_email（NOT NULL）がkimishika登録メールアドレスで登録されている");
 
   // B5: 既存医院(plan未設定)への影響なし（条件変更していないことのDB側確認）
   const untouched = psql(`select count(*) from public.clinics where plan is null`);
