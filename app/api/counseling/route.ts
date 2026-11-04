@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     }
 
     // ----------------------------------------------------
-    // 💡 KC-056：kimishika特典医院の月100回制御
+    // 💡 KC-056：kimishika特典医院の月30回制御
     //    Dify呼び出しの前に医院を特定し、plan='kimishika' の場合のみ
     //    当月の生成回数をDB側で原子インクリメントする。
     //    上限到達（RPCがnullを返す）の場合はDifyを呼ばず案内を返す（コストを発生させない）。
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
         if (clinicId && clinic?.plan === "kimishika") {
           const { data: newCount, error: rpcError } = await supabase.rpc(
             "try_increment_clinic_monthly_usage",
-            { p_clinic_id: clinicId, p_limit: 100 }
+            { p_clinic_id: clinicId, p_limit: 30 }
           );
           if (rpcError) {
             console.warn(
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
                 success: false,
                 monthlyLimitReached: true,
                 error:
-                  "今月の無料利用枠（月100回）に達しました。\n翌月1日にリセットされます。",
+                  "今月の無料利用枠（月30回）に達しました。\n翌月1日にリセットされます。",
               },
               { status: 403 }
             );

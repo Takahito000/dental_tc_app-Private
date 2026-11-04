@@ -1,4 +1,4 @@
-// kimishika特典医院の月100回制御（KC-056）の動作検証
+// kimishika特典医院の月30回制御（KC-056 / 2026-11-04に上限100→30へ変更）の動作検証
 //
 // 【Part A: 静的検査】常時実行。コード・SQLの構造・文言を検証する。
 // 【Part B: DB検証】   接続先が指定された場合のみ実行。
@@ -49,11 +49,11 @@ ok(migration.includes("grant execute"), "A1-7 RPC は service_role のみ実行�
 const idxRpc = route.indexOf("try_increment_clinic_monthly_usage");
 const idxDify = route.indexOf("fetch(targetUrl");
 ok(idxRpc > -1 && idxDify > -1 && idxRpc < idxDify,
-  "A2-1 月100回チェックが Dify呼び出し(fetch)より前にある");
+  "A2-1 月30回チェックが Dify呼び出し(fetch)より前にある");
 ok(route.includes('clinic?.plan === "kimishika"'),
   "A2-2 kimishika特典医院(plan=kimishika)にのみ適用されるガード");
 ok(route.includes("monthlyLimitReached: true"), "A2-3 上限到達時は monthlyLimitReached フラグを返す");
-ok(route.includes("今月の無料利用枠（月100回）に達しました。\\n翌月1日にリセットされます。"),
+ok(route.includes("今月の無料利用枠（月30回）に達しました。\\n翌月1日にリセットされます。"),
   "A2-4 上限到達時の文言が依頼者提示文面と一致");
 
 // A3: 画面表示
@@ -100,30 +100,30 @@ if (!pg) {
   };
   const cid = ensureClinic("kc056-test-token");
 
-  // B1: RPCの 99/100/101
+  // B1: RPCの 29/30/31（月30回枠）
   const seq = psql(`do $$
     declare r int; i int;
     begin
       delete from public.clinic_monthly_usage where clinic_id='${cid}'::uuid;
       create temp table _r (seq int, ret int);
-      for i in 1..101 loop
-        r := public.try_increment_clinic_monthly_usage('${cid}'::uuid, 100);
+      for i in 1..31 loop
+        r := public.try_increment_clinic_monthly_usage('${cid}'::uuid, 30);
         insert into _r values (i, r);
       end loop;
     end $$;
-    select string_agg(coalesce(ret::text,'NULL'),',') from (select seq, ret from pg_temp._r where seq in (99,100,101) order by seq) t;`);
-  ok(seq === "99,100,NULL", `B1 99回目=99 / 100回目=100 / 101回目=NULL(拒否) [実測: ${seq}]`);
+    select string_agg(coalesce(ret::text,'NULL'),',') from (select seq, ret from pg_temp._r where seq in (29,30,31) order by seq) t;`);
+  ok(seq === "29,30,NULL", `B1 29回目=29 / 30回目=30 / 31回目=NULL(拒否) [実測: ${seq}]`);
   const cnt = psql(`select count from public.clinic_monthly_usage where clinic_id='${cid}'::uuid`);
-  ok(cnt === "100", `B2 上限を超えてカウントされていない（count=${cnt}）`);
+  ok(cnt === "30", `B2 上限を超えてカウントされていない（count=${cnt}）`);
 
   // B3: 月またぎ（前月行があっても当月は新規カウント＝lazy reset）
   //     B1で当月枠を使い切った医院とは別の医院で検証する
   const cidB = ensureClinic("kc056-test-token-b");
   psql(`delete from public.clinic_monthly_usage where clinic_id='${cidB}'::uuid`);
   psql(`insert into public.clinic_monthly_usage (clinic_id, month, count)
-    values ('${cidB}'::uuid, date_trunc('month', current_date)::date - interval '1 month', 100)`);
-  const cross = psql(`select public.try_increment_clinic_monthly_usage('${cidB}'::uuid, 100)`);
-  ok(cross === "1", `B3 当月は初回から利用可能（前月100回済みでも当月1回目が成功） [返値=${cross}]`);
+    values ('${cidB}'::uuid, date_trunc('month', current_date)::date - interval '1 month', 30)`);
+  const cross = psql(`select public.try_increment_clinic_monthly_usage('${cidB}'::uuid, 30)`);
+  ok(cross === "1", `B3 当月は初回から利用可能（前月30回済みでも当月1回目が成功） [返値=${cross}]`);
   psql(`delete from public.clinic_monthly_usage where clinic_id in ('${cid}'::uuid, '${cidB}'::uuid)`);
 
   // B4: SQLテンプレート（冪等＋トークン単体返却）
@@ -148,6 +148,27 @@ if (!pg) {
   // B5: 既存医院(plan未設定)への影響なし（条件変更していないことのDB側確認）
   const untouched = psql(`select count(*) from public.clinics where plan is null`);
   ok(Number(untouched) >= 1, `B5 plan未設定（従来のトライアル等）医院がそのまま存在する（${untouched}件）`);
+
+  // B6: 並列実行でも上限30で厳密に止まること（25回消費済み + 30並列 → ちょうど5件成功）
+  const cidC = ensureClinic("kc056-test-token-c");
+  psql(`delete from public.clinic_monthly_usage where clinic_id='${cidC}'::uuid`);
+  psql(`insert into public.clinic_monthly_usage (clinic_id, month, count)
+    select '${cidC}'::uuid, date_trunc('month', current_date)::date, 25
+    on conflict do nothing`);
+  const concOut = execFileSync("bash", ["-c", `
+    rm -f /tmp/kc063-conc.txt
+    for i in $(seq 1 30); do
+      psql -h ${host} -p ${port} -d ${db} -tAc "select public.try_increment_clinic_monthly_usage('${cidC}'::uuid, 30);" >> /tmp/kc063-conc.txt &
+    done
+    wait
+    sort /tmp/kc063-conc.txt | uniq -c
+    rm -f /tmp/kc063-conc.txt
+  `], { encoding: "utf8" });
+  const succeeded = (concOut.match(/^\s*1\s+(2[6-9]|30)\s*$/gm) || []).length;
+  const finalCnt = psql(`select count from public.clinic_monthly_usage where clinic_id='${cidC}'::uuid`);
+  ok(succeeded === 5, `B6-1 30並列でちょうど5件のみ成功（26〜30） [実測成功種別: ${succeeded}]`);
+  ok(finalCnt === "30", `B6-2 最終カウントが厳密に30で止まっている（count=${finalCnt}）`);
+  psql(`delete from public.clinic_monthly_usage where clinic_id='${cidC}'::uuid`);
 }
 
 console.log(`\n結果: ${pass}件PASS / ${fail}件FAIL`);
